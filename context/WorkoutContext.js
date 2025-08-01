@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useReducer, useEffect } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
+import { AppState } from 'react-native'
 
 const WorkoutContext = createContext()
 
@@ -14,6 +15,9 @@ const initialState = {
   restTimer: 0,
   isResting: false,
   restType: "",
+  workoutStartTime: null,
+  restStartTime: null,
+  restDuration: null,
 }
 
 function workoutReducer(state, action) {
@@ -50,6 +54,12 @@ function workoutReducer(state, action) {
       return { ...state, isResting: action.payload }
     case "SET_REST_TYPE":
       return { ...state, restType: action.payload }
+    case "SET_WORKOUT_START_TIME":
+      return { ...state, workoutStartTime: action.payload }
+    case "SET_REST_START_TIME":
+      return { ...state, restStartTime: action.payload }
+    case "SET_REST_DURATION":
+      return { ...state, restDuration: action.payload }
     default:
       return state
   }
@@ -58,33 +68,155 @@ function workoutReducer(state, action) {
 export function WorkoutProvider({ children }) {
   const [state, dispatch] = useReducer(workoutReducer, initialState)
 
+  // Handle app state changes (foreground/background)
+  useEffect(() => {
+    const handleAppStateChange = (nextAppState) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - recalculate timers
+        recalculateTimers()
+      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+        // App going to background - save current state
+        saveTimerStates()
+      }
+    }
+
+    const subscription = AppState.addEventListener('change', handleAppStateChange)
+    return () => subscription?.remove()
+  }, [])
+
+  // Recalculate timers when app comes back to foreground
+  const recalculateTimers = async () => {
+    try {
+      const now = Date.now()
+      
+      // Recalculate workout timer - FIXED VERSION
+      const workoutData = await AsyncStorage.getItem("workoutTimerData")
+      if (workoutData) {
+        const { isRunning, startTime } = JSON.parse(workoutData)
+        if (isRunning && startTime) {
+          const elapsedSeconds = Math.floor((now - startTime) / 1000)
+          
+          // CRITICAL FIX: Set ALL workout states in the correct order
+          dispatch({ type: "SET_WORKOUT_START_TIME", payload: startTime })
+          dispatch({ type: "SET_WORKOUT_TIMER", payload: elapsedSeconds })
+          dispatch({ type: "SET_WORKOUT_RUNNING", payload: true })
+          
+          // Save to storage
+          await AsyncStorage.multiSet([
+            ["workoutTimer", elapsedSeconds.toString()],
+            ["isWorkoutRunning", "true"]
+          ])
+        }
+      }
+      
+      // Recalculate rest timer
+      const restData = await AsyncStorage.getItem("restTimerData")
+      if (restData) {
+        const { isResting, startTime, duration, type } = JSON.parse(restData)
+        if (isResting && startTime && duration) {
+          const elapsedSeconds = Math.floor((now - startTime) / 1000)
+          const remainingSeconds = Math.max(0, duration - elapsedSeconds)
+          
+          if (remainingSeconds <= 0) {
+            // Rest finished while app was closed
+            dispatch({ type: "SET_RESTING", payload: false })
+            dispatch({ type: "SET_REST_TIMER", payload: 0 })
+            dispatch({ type: "SET_REST_TYPE", payload: "" })
+            dispatch({ type: "SET_REST_START_TIME", payload: null })
+            dispatch({ type: "SET_REST_DURATION", payload: null })
+            await AsyncStorage.multiRemove(["restTimerData", "restTimer", "isResting", "restType"])
+          } else {
+            // Rest still active
+            dispatch({ type: "SET_REST_START_TIME", payload: startTime })
+            dispatch({ type: "SET_REST_DURATION", payload: duration })
+            dispatch({ type: "SET_RESTING", payload: true })
+            dispatch({ type: "SET_REST_TIMER", payload: remainingSeconds })
+            dispatch({ type: "SET_REST_TYPE", payload: type })
+            await AsyncStorage.multiSet([
+              ["restTimer", remainingSeconds.toString()],
+              ["isResting", "true"],
+              ["restType", type || ""]
+            ])
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error recalculating timers:", error)
+    }
+  }
+
+  // Save timer states when app goes to background
+  const saveTimerStates = async () => {
+    try {
+      // Save workout timer state
+      if (state.isWorkoutRunning && state.workoutStartTime) {
+        await AsyncStorage.setItem("workoutTimerData", JSON.stringify({
+          isRunning: true,
+          startTime: state.workoutStartTime
+        }))
+      }
+      
+      // Save rest timer state
+      if (state.isResting && state.restStartTime && state.restDuration) {
+        await AsyncStorage.setItem("restTimerData", JSON.stringify({
+          isResting: true,
+          startTime: state.restStartTime,
+          duration: state.restDuration,
+          type: state.restType
+        }))
+      }
+    } catch (error) {
+      console.error("Error saving timer states:", error)
+    }
+  }
+
   // Global timer that runs continuously when workout is active
   useEffect(() => {
     let interval
-    if (state.activeWorkout && state.isWorkoutRunning) {
+    if (state.activeWorkout && state.isWorkoutRunning && state.workoutStartTime) {
       interval = setInterval(() => {
-        dispatch({ type: "INCREMENT_WORKOUT_TIMER" })
-        saveWorkoutTimer(state.workoutTimer + 1)
+        // Always use timestamp for accuracy
+        const elapsedSeconds = Math.floor((Date.now() - state.workoutStartTime) / 1000)
+        dispatch({ type: "SET_WORKOUT_TIMER", payload: elapsedSeconds })
+        saveWorkoutTimer(elapsedSeconds)
       }, 1000)
     }
     return () => clearInterval(interval)
-  }, [state.activeWorkout, state.isWorkoutRunning, state.workoutTimer])
+  }, [state.activeWorkout, state.isWorkoutRunning, state.workoutStartTime])
 
   // Rest timer that runs when resting
   useEffect(() => {
     let interval
     if (state.isResting && state.restTimer > 0) {
       interval = setInterval(() => {
-        dispatch({ type: "DECREMENT_REST_TIMER" })
-        if (state.restTimer <= 1) {
-          dispatch({ type: "SET_RESTING", payload: false })
-          dispatch({ type: "SET_REST_TIMER", payload: 0 })
-          dispatch({ type: "SET_REST_TYPE", payload: "" })
+        if (state.restStartTime && state.restDuration) {
+          // Use timestamp for accuracy
+          const elapsedSeconds = Math.floor((Date.now() - state.restStartTime) / 1000)
+          const remainingSeconds = Math.max(0, state.restDuration - elapsedSeconds)
+          
+          if (remainingSeconds <= 0) {
+            dispatch({ type: "SET_RESTING", payload: false })
+            dispatch({ type: "SET_REST_TIMER", payload: 0 })
+            dispatch({ type: "SET_REST_TYPE", payload: "" })
+            dispatch({ type: "SET_REST_START_TIME", payload: null })
+            dispatch({ type: "SET_REST_DURATION", payload: null })
+            clearRestTimerData()
+          } else {
+            dispatch({ type: "SET_REST_TIMER", payload: remainingSeconds })
+          }
+        } else {
+          dispatch({ type: "DECREMENT_REST_TIMER" })
+          if (state.restTimer <= 1) {
+            dispatch({ type: "SET_RESTING", payload: false })
+            dispatch({ type: "SET_REST_TIMER", payload: 0 })
+            dispatch({ type: "SET_REST_TYPE", payload: "" })
+            clearRestTimerData()
+          }
         }
       }, 1000)
     }
     return () => clearInterval(interval)
-  }, [state.isResting, state.restTimer])
+  }, [state.isResting, state.restTimer, state.restStartTime, state.restDuration])
 
   useEffect(() => {
     loadWorkouts()
@@ -92,12 +224,10 @@ export function WorkoutProvider({ children }) {
 
   const loadWorkouts = async () => {
     try {
-      const [storedWorkouts, storedHistory, storedActiveWorkout, storedTimer, storedRunning] = await Promise.all([
+      const [storedWorkouts, storedHistory, storedActiveWorkout] = await Promise.all([
         AsyncStorage.getItem("workouts"),
         AsyncStorage.getItem("workoutHistory"),
         AsyncStorage.getItem("activeWorkout"),
-        AsyncStorage.getItem("workoutTimer"),
-        AsyncStorage.getItem("isWorkoutRunning"),
       ])
 
       if (storedWorkouts) {
@@ -117,17 +247,9 @@ export function WorkoutProvider({ children }) {
         }
       }
 
-      if (storedTimer) {
-        const timer = Number.parseInt(storedTimer)
-        if (!isNaN(timer)) {
-          dispatch({ type: "SET_WORKOUT_TIMER", payload: timer })
-        }
-      }
+      // Recalculate timers after loading basic data
+      setTimeout(() => recalculateTimers(), 200)
 
-      if (storedRunning) {
-        const isRunning = JSON.parse(storedRunning)
-        dispatch({ type: "SET_WORKOUT_RUNNING", payload: Boolean(isRunning) })
-      }
     } catch (error) {
       console.error("Error loading workouts:", error)
     }
@@ -183,6 +305,14 @@ export function WorkoutProvider({ children }) {
     }
   }
 
+  const clearRestTimerData = async () => {
+    try {
+      await AsyncStorage.multiRemove(["restTimerData", "restTimer", "isResting", "restType"])
+    } catch (error) {
+      console.error("Error clearing rest timer data:", error)
+    }
+  }
+
   const getLastWorkoutSession = async (workoutId) => {
     try {
       // Always get fresh data from storage
@@ -204,7 +334,6 @@ export function WorkoutProvider({ children }) {
 
   const addWorkout = (workout) => {
     if (!workout || typeof workout !== "object") return
-
     const newWorkout = { ...workout, id: Date.now().toString() }
     const updatedWorkouts = [...(state.workouts || []), newWorkout]
     dispatch({ type: "ADD_WORKOUT", payload: newWorkout })
@@ -213,7 +342,6 @@ export function WorkoutProvider({ children }) {
 
   const updateWorkout = (workout) => {
     if (!workout || typeof workout !== "object" || !workout.id) return
-
     const updatedWorkouts = (state.workouts || []).map((w) => (w.id === workout.id ? workout : w))
     dispatch({ type: "UPDATE_WORKOUT", payload: workout })
     saveWorkouts(updatedWorkouts)
@@ -221,7 +349,6 @@ export function WorkoutProvider({ children }) {
 
   const deleteWorkout = (workoutId) => {
     if (!workoutId) return
-
     const updatedWorkouts = (state.workouts || []).filter((w) => w.id !== workoutId)
     dispatch({ type: "DELETE_WORKOUT", payload: workoutId })
     saveWorkouts(updatedWorkouts)
@@ -236,13 +363,11 @@ export function WorkoutProvider({ children }) {
 
     // Get last session data to pre-populate reps
     const lastSession = await getLastWorkoutSession(workout.id)
-
     const workoutWithPrefill = {
       ...workout,
       exercises: Array.isArray(workout.exercises)
         ? workout.exercises.map((ex) => {
             if (!ex || typeof ex !== "object") return ex
-
             const lastExercise = lastSession?.exercises?.find((lastEx) => lastEx && lastEx.id === ex.id)
             const targetSets = typeof ex.sets === "number" ? ex.sets : 3
             const targetReps = typeof ex.reps === "number" ? ex.reps : 10
@@ -266,13 +391,18 @@ export function WorkoutProvider({ children }) {
   }
 
   const startWorkout = () => {
+    const startTime = Date.now()
     dispatch({ type: "SET_WORKOUT_RUNNING", payload: true })
+    dispatch({ type: "SET_WORKOUT_START_TIME", payload: startTime })
     saveWorkoutRunning(true)
+    AsyncStorage.setItem("workoutTimerData", JSON.stringify({ isRunning: true, startTime }))
   }
 
   const pauseWorkout = () => {
     dispatch({ type: "SET_WORKOUT_RUNNING", payload: false })
+    dispatch({ type: "SET_WORKOUT_START_TIME", payload: null })
     saveWorkoutRunning(false)
+    AsyncStorage.removeItem("workoutTimerData")
   }
 
   const finishWorkout = (completedWorkout) => {
@@ -296,15 +426,18 @@ export function WorkoutProvider({ children }) {
     dispatch({ type: "SET_RESTING", payload: false })
     dispatch({ type: "SET_REST_TIMER", payload: 0 })
     dispatch({ type: "SET_REST_TYPE", payload: "" })
+    dispatch({ type: "SET_WORKOUT_START_TIME", payload: null })
+    dispatch({ type: "SET_REST_START_TIME", payload: null })
+    dispatch({ type: "SET_REST_DURATION", payload: null })
 
     saveActiveWorkout(null)
     saveWorkoutRunning(false)
     saveWorkoutTimer(0)
+    AsyncStorage.multiRemove(["workoutTimerData", "restTimerData"])
   }
 
   const updateActiveWorkout = (workout) => {
     if (!workout || typeof workout !== "object") return
-
     dispatch({ type: "SET_ACTIVE_WORKOUT", payload: workout })
     saveActiveWorkout(workout)
   }
@@ -313,14 +446,30 @@ export function WorkoutProvider({ children }) {
     if (typeof time === "number" && !isNaN(time)) {
       dispatch({ type: "SET_WORKOUT_TIMER", payload: time })
       saveWorkoutTimer(time)
+      
+      if (time === 0) {
+        dispatch({ type: "SET_WORKOUT_START_TIME", payload: null })
+        AsyncStorage.removeItem("workoutTimerData")
+      }
     }
   }
 
   const startRest = (type, duration) => {
     if (typeof duration === "number" && !isNaN(duration) && duration > 0) {
+      const startTime = Date.now()
       dispatch({ type: "SET_REST_TIMER", payload: duration })
       dispatch({ type: "SET_REST_TYPE", payload: type || "" })
       dispatch({ type: "SET_RESTING", payload: true })
+      dispatch({ type: "SET_REST_START_TIME", payload: startTime })
+      dispatch({ type: "SET_REST_DURATION", payload: duration })
+      
+      // Save rest state
+      AsyncStorage.multiSet([
+        ["restTimerData", JSON.stringify({ isResting: true, startTime, duration, type })],
+        ["restTimer", duration.toString()],
+        ["isResting", "true"],
+        ["restType", type || ""]
+      ])
     }
   }
 
@@ -328,6 +477,9 @@ export function WorkoutProvider({ children }) {
     dispatch({ type: "SET_RESTING", payload: false })
     dispatch({ type: "SET_REST_TIMER", payload: 0 })
     dispatch({ type: "SET_REST_TYPE", payload: "" })
+    dispatch({ type: "SET_REST_START_TIME", payload: null })
+    dispatch({ type: "SET_REST_DURATION", payload: null })
+    clearRestTimerData()
   }
 
   return (

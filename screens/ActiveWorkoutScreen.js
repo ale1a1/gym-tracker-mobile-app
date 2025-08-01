@@ -15,6 +15,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     pauseWorkout,
     isWorkoutRunning,
     workoutTimer,
+    setWorkoutTimer,
     updateActiveWorkout,
     activeWorkout: contextActiveWorkout,
     restTimer,
@@ -22,7 +23,6 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     restType,
     startRest,
     skipRest,
-    setWorkoutTimer,
   } = useWorkout()
 
   const [activeWorkout, setActiveWorkoutLocal] = useState(null)
@@ -30,11 +30,12 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [hasShownModal, setHasShownModal] = useState(false)
   const isFinishing = useRef(false)
+  const hasAutoStarted = useRef(false) // NEW: Track if we've auto-started
 
   // Initialize activeWorkout safely
   useEffect(() => {
     if (isFinishing.current) return
-    
+
     if (contextActiveWorkout) {
       setActiveWorkoutLocal(contextActiveWorkout)
     } else if (workout) {
@@ -45,27 +46,31 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
 
   const currentWorkout = contextActiveWorkout || activeWorkout
 
-  // Auto-start the workout when the screen opens
+  // FIXED: Auto-start the workout when the screen opens
   useEffect(() => {
-    if (isFinishing.current) return
-    
+    if (isFinishing.current || hasAutoStarted.current) return
+
     if (currentWorkout && !isWorkoutRunning) {
-      startWorkout()
+      // Only auto-start if this is a fresh workout (timer is 0)
+      if (workoutTimer === 0) {
+        startWorkout()
+        hasAutoStarted.current = true
+      }
     }
-  }, [currentWorkout])
+  }, [currentWorkout, isWorkoutRunning, workoutTimer])
 
   // Check if all exercises are completed
   useEffect(() => {
     if (!currentWorkout || !currentWorkout.exercises || currentWorkout.exercises.length === 0) return
     if (showCompletionModal || isFinishing.current) return
-    
-    const allExercisesCompleted = currentWorkout.exercises.every(exercise => {
+
+    const allExercisesCompleted = currentWorkout.exercises.every((exercise) => {
       if (!exercise || !exercise.setsCompleted) {
         return false
       }
-      
-      const allSetsCompleted = exercise.setsCompleted.every(completed => completed === true)
-      
+
+      const allSetsCompleted = exercise.setsCompleted.every((completed) => completed === true)
+
       return allSetsCompleted
     })
 
@@ -124,9 +129,10 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
   const handleCancelConfirm = () => {
     setShowCancelModal(false)
     isFinishing.current = true
-    // Reset timer and clear active workout without saving to history
-    setWorkoutTimer(0)
-    setActiveWorkout(null)
+    // Reset timer and workout state when cancelling
+    pauseWorkout() // Stop the workout timer
+    setWorkoutTimer(0) // Reset timer to 0
+    setActiveWorkout(null) // Clear active workout
     navigation.goBack()
   }
 
@@ -177,8 +183,8 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
       exercises: currentWorkout.exercises.map((ex) => {
         if (!ex || ex.id !== exerciseId) return ex
 
-        const newSetsCompleted = ex.setsCompleted.map((completed, index) => 
-          index === setIndex ? !completed : completed
+        const newSetsCompleted = ex.setsCompleted.map((completed, index) =>
+          index === setIndex ? !completed : completed,
         )
 
         return {
@@ -215,50 +221,41 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
       for (let j = i; j < Math.min(i + 2, exercise.completed.length); j++) {
         const completedReps = exercise.completed[j]
         const isSetCompleted = exercise.setsCompleted && exercise.setsCompleted[j]
-        
+
         row.push(
           <View key={j} style={[styles.setItem, isSetCompleted && styles.completedSetItem]}>
             <Text style={styles.setNumber}>Set {j + 1}</Text>
 
             <View style={styles.repsContainer}>
-              <TouchableOpacity
-                style={styles.repsButton}
-                onPress={() => updateReps(exercise.id, j, -1)}
-              >
+              <TouchableOpacity style={styles.repsButton} onPress={() => updateReps(exercise.id, j, -1)}>
                 <Ionicons name="remove" size={16} color="#ef4444" />
               </TouchableOpacity>
 
               <Text style={styles.repsValue}>{completedReps}</Text>
 
-              <TouchableOpacity
-                style={styles.repsButton}
-                onPress={() => updateReps(exercise.id, j, 1)}
-              >
+              <TouchableOpacity style={styles.repsButton} onPress={() => updateReps(exercise.id, j, 1)}>
                 <Ionicons name="add" size={16} color="#10b981" />
               </TouchableOpacity>
             </View>
 
-            <TouchableOpacity 
-              style={[
-                styles.setCompleteButton, 
-                isSetCompleted && styles.setCompletedButton
-              ]} 
+            <TouchableOpacity
+              style={[styles.setCompleteButton, isSetCompleted && styles.setCompletedButton]}
               onPress={() => markSetCompleted(exercise.id, j)}
             >
-              <Ionicons 
-                name={isSetCompleted ? "checkmark" : "checkmark-outline"} 
-                size={12} 
-                color={isSetCompleted ? "#fff" : "#10b981"} 
+              <Ionicons
+                name={isSetCompleted ? "checkmark" : "checkmark-outline"}
+                size={12}
+                color={isSetCompleted ? "#fff" : "#10b981"}
               />
             </TouchableOpacity>
-          </View>
+          </View>,
         )
       }
-      
+
       sets.push(
         <View key={i} style={styles.setsRow}>
           {row}
-        </View>
+        </View>,
       )
     }
     return sets
@@ -304,9 +301,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
         <View style={styles.restSection}>
           {isResting ? (
             <View style={styles.restTimerActive}>
-              <Text style={styles.restLabel}>
-                {restType === "set" ? "Set Rest" : "Exercise Rest"}
-              </Text>
+              <Text style={styles.restLabel}>{restType === "set" ? "Set Rest" : "Exercise Rest"}</Text>
               <Text style={styles.restValue}>{formatTime(restTimer)}</Text>
               <TouchableOpacity style={styles.skipRestButton} onPress={skipRest}>
                 <Text style={styles.skipRestText}>SKIP REST</Text>
@@ -323,16 +318,14 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
       <ScrollView style={styles.exercisesList}>
         {currentWorkout.exercises &&
           currentWorkout.exercises.map((exercise, exerciseIndex) => {
-            const allSetsCompleted = exercise.setsCompleted && exercise.setsCompleted.every(completed => completed)
-            
+            const allSetsCompleted = exercise.setsCompleted && exercise.setsCompleted.every((completed) => completed)
+
             return (
               <View key={exercise.id} style={[styles.exerciseCard, allSetsCompleted && styles.completedCard]}>
                 <View style={styles.exerciseHeader}>
                   <Text style={styles.exerciseNumber}>{exerciseIndex + 1}</Text>
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
-                  {allSetsCompleted && (
-                    <Ionicons name="checkmark-circle" size={40} color="#10b981" />
-                  )}
+                  {allSetsCompleted && <Ionicons name="checkmark-circle" size={40} color="#10b981" />}
                 </View>
 
                 <View style={styles.setsContainer}>
@@ -340,15 +333,11 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                     Target: {exercise.sets} sets × {exercise.reps} reps
                   </Text>
 
-                  <View style={styles.setsGrid}>
-                    {exercise.completed && renderSetsGrid(exercise)}
-                  </View>
+                  <View style={styles.setsGrid}>{exercise.completed && renderSetsGrid(exercise)}</View>
 
                   {exercise.lastPerformance && (
                     <View style={styles.lastPerformance}>
-                      <Text style={styles.lastPerformanceText}>
-                        Previous: [{exercise.lastPerformance.join("-")}]
-                      </Text>
+                      <Text style={styles.lastPerformanceText}>Previous: [{exercise.lastPerformance.join("-")}]</Text>
                     </View>
                   )}
 
@@ -381,26 +370,16 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
             </View>
 
             <View style={styles.modalContent}>
-              <Text style={styles.modalText}>
-                Are you sure you want to cancel this workout?
-              </Text>
-              <Text style={styles.modalText}>
-                All progress will be lost and won't be saved to your history.
-              </Text>
+              <Text style={styles.modalText}>Are you sure you want to cancel this workout?</Text>
+              <Text style={styles.modalText}>All progress will be lost and won't be saved to your history.</Text>
             </View>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalContinueButton} 
-                onPress={handleCancelCancel}
-              >
+              <TouchableOpacity style={styles.modalContinueButton} onPress={handleCancelCancel}>
                 <Text style={styles.modalContinueText}>Keep Going</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.modalCancelButton} 
-                onPress={handleCancelConfirm}
-              >
+              <TouchableOpacity style={styles.modalCancelButton} onPress={handleCancelConfirm}>
                 <Text style={styles.modalCancelText}>Cancel Workout</Text>
               </TouchableOpacity>
             </View>
@@ -424,26 +403,16 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
             </View>
 
             <View style={styles.modalContent}>
-              <Text style={styles.modalText}>
-                Congratulations! You've completed all exercises in this workout.
-              </Text>
-              <Text style={styles.modalText}>
-                Would you like to terminate the workout now?
-              </Text>
+              <Text style={styles.modalText}>Congratulations! You've completed all exercises in this workout.</Text>
+              <Text style={styles.modalText}>Would you like to terminate the workout now?</Text>
             </View>
 
             <View style={styles.modalButtons}>
-              <TouchableOpacity 
-                style={styles.modalContinueButton} 
-                onPress={handleCompletionModalContinue}
-              >
+              <TouchableOpacity style={styles.modalContinueButton} onPress={handleCompletionModalContinue}>
                 <Text style={styles.modalContinueText}>Continue</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.modalFinishButton} 
-                onPress={handleCompletionModalFinish}
-              >
+              <TouchableOpacity style={styles.modalFinishButton} onPress={handleCompletionModalFinish}>
                 <Text style={styles.modalFinishText}>Finish Workout</Text>
               </TouchableOpacity>
             </View>
