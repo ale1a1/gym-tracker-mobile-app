@@ -130,9 +130,8 @@ export default function HomeScreen({ navigation }) {
                 </Text>
               </TouchableOpacity>
               {isResting && (
-                <View style={styles.restInfo}>
-                  <Ionicons name="pause-circle" size={12} color="#f59e0b" />
-                  <Text style={styles.restText}>
+                <View style={styles.restInfo}>                 
+                  <Text style={styles.restText} onPress={goToActiveWorkout}>
                     {restType === "set" ? "Set Rest" : "Exercise Rest"} {formatTimerTime(restTimer)}
                   </Text>
                 </View>
