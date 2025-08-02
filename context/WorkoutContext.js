@@ -361,26 +361,48 @@ export function WorkoutProvider({ children }) {
       return
     }
 
+    // CRITICAL FIX: Get the latest workout data from the current state first, then fallback to storage
+    let latestWorkout = state.workouts.find(w => w.id === workout.id)
+    
+    if (!latestWorkout) {
+      // If not found in state, get from storage as fallback
+      const storedWorkouts = await AsyncStorage.getItem("workouts")
+      const workouts = storedWorkouts ? JSON.parse(storedWorkouts) : []
+      latestWorkout = workouts.find(w => w.id === workout.id) || workout
+    }
+
     // Get last session data to pre-populate reps
-    const lastSession = await getLastWorkoutSession(workout.id)
+    const lastSession = await getLastWorkoutSession(latestWorkout.id)
     const workoutWithPrefill = {
-      ...workout,
-      exercises: Array.isArray(workout.exercises)
-        ? workout.exercises.map((ex) => {
+      ...latestWorkout, // Use the latest workout data from state/storage
+      exercises: Array.isArray(latestWorkout.exercises)
+        ? latestWorkout.exercises.map((ex) => {
             if (!ex || typeof ex !== "object") return ex
             const lastExercise = lastSession?.exercises?.find((lastEx) => lastEx && lastEx.id === ex.id)
             const targetSets = typeof ex.sets === "number" ? ex.sets : 3
             const targetReps = typeof ex.reps === "number" ? ex.reps : 10
 
+            // CRITICAL FIX: Always create arrays based on current targetSets, not old data
+            let newCompleted = new Array(targetSets).fill(0) // NEW SETS START WITH 0 REPS
+            let newSetsCompleted = new Array(targetSets).fill(false)
+
+            // If we have previous data, preserve what we can
+            if (lastExercise && Array.isArray(lastExercise.completed)) {
+              for (let i = 0; i < Math.min(lastExercise.completed.length, targetSets); i++) {
+                newCompleted[i] = lastExercise.completed[i]
+              }
+            }
+            // Fill remaining slots with targetReps only if no previous data exists
+            else {
+              newCompleted = new Array(targetSets).fill(targetReps)
+            }
+
             return {
               ...ex,
-              completed:
-                lastExercise && Array.isArray(lastExercise.completed)
-                  ? [...lastExercise.completed]
-                  : new Array(targetSets).fill(targetReps),
+              completed: newCompleted,
               lastPerformance: lastExercise && Array.isArray(lastExercise.completed) ? lastExercise.completed : null,
               isCompleted: false,
-              setsCompleted: new Array(targetSets).fill(false),
+              setsCompleted: newSetsCompleted,
             }
           })
         : [],
@@ -405,7 +427,7 @@ export function WorkoutProvider({ children }) {
     AsyncStorage.removeItem("workoutTimerData")
   }
 
-  const finishWorkout = (completedWorkout) => {
+   const finishWorkout = (completedWorkout) => {
     if (!completedWorkout || typeof completedWorkout !== "object") return
 
     const workoutToSave = {
@@ -418,6 +440,26 @@ export function WorkoutProvider({ children }) {
     const updatedHistory = [...(state.workoutHistory || []), workoutToSave]
     dispatch({ type: "SET_WORKOUT_HISTORY", payload: updatedHistory })
     saveWorkoutHistory(updatedHistory)
+
+    // CRITICAL FIX: Update the original workout with any changes made during the active session
+    const originalWorkout = {
+      ...completedWorkout,
+      // Remove the active workout specific properties
+      exercises: completedWorkout.exercises.map(ex => ({
+        id: ex.id,
+        name: ex.name,
+        sets: ex.sets,
+        reps: ex.reps,
+        // Don't save the progress data (completed, setsCompleted, etc.)
+      }))
+    }
+    
+    // Update the workout in the workouts array
+    const updatedWorkouts = (state.workouts || []).map((w) => 
+      w.id === completedWorkout.id ? originalWorkout : w
+    )
+    dispatch({ type: "SET_WORKOUTS", payload: updatedWorkouts })
+    saveWorkouts(updatedWorkouts)
 
     // Clear active workout and timer
     dispatch({ type: "SET_ACTIVE_WORKOUT", payload: null })

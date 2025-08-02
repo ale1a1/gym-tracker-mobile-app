@@ -59,7 +59,9 @@ export default function HomeScreen({ navigation }) {
       return
     }
 
-    navigation.navigate("ActiveWorkout", { workout })
+    // Get the latest workout data from state before navigating
+    const latestWorkout = workouts.find(w => w.id === workout.id) || workout
+    navigation.navigate("ActiveWorkout", { workout: latestWorkout })
   }
 
   const renderWorkoutItem = ({ item }) => {
