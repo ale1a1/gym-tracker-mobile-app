@@ -8,7 +8,7 @@ export default function ViewWorkoutScreen({ route, navigation }) {
   const { workout } = route.params
   const { updateWorkout, deleteWorkout, activeWorkout, updateActiveWorkout } = useWorkout()
   
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(route.params?.isEditing || false)
   const [editedWorkout, setEditedWorkout] = useState(workout)
 
   const handleSave = async () => {

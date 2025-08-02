@@ -3,15 +3,21 @@ import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
 
 export default function HomeScreen({ navigation }) {
-  const { workouts, deleteWorkout, workoutHistory, activeWorkout, workoutTimer, restTimer, isResting, restType } =
-    useWorkout()
-
-  const handleDeleteWorkout = (workoutId, workoutTitle) => {
-    Alert.alert("Delete Workout", `Are you sure you want to delete "${workoutTitle}"?`, [
-      { text: "Cancel", style: "cancel" },
-      { text: "Delete", style: "destructive", onPress: () => deleteWorkout(workoutId) },
-    ])
-  }
+  const {
+    workouts,
+    deleteWorkout,
+    workoutHistory,
+    activeWorkout,
+    workoutTimer,
+    restTimer,
+    isResting,
+    restType,
+    isWorkoutRunning,
+    pauseWorkout,
+    startWorkout,
+    setActiveWorkout,
+    setWorkoutTimer,
+  } = useWorkout()
 
   const formatTime = (minutes) => {
     if (minutes < 60) return `${minutes}m`
@@ -42,7 +48,7 @@ export default function HomeScreen({ navigation }) {
     return null
   }
 
-  const startWorkout = (workout) => {
+  const startWorkoutHandler = (workout) => {
     // Check if there's already an active workout AND it's a different workout
     if (activeWorkout && activeWorkout.id !== workout.id) {
       Alert.alert(
@@ -59,9 +65,38 @@ export default function HomeScreen({ navigation }) {
       return
     }
 
-    // Get the latest workout data from state before navigating
-    const latestWorkout = workouts.find(w => w.id === workout.id) || workout
-    navigation.navigate("ActiveWorkout", { workout: latestWorkout })
+    navigation.navigate("ActiveWorkout", { workout })
+  }
+
+  const handlePauseWorkout = () => {
+    pauseWorkout()
+  }
+
+  const handleResumeWorkout = () => {
+    // Resume the workout and navigate to active workout screen
+    startWorkout()
+    navigation.navigate("ActiveWorkout", { workout: activeWorkout })
+  }
+
+  const handleCancelWorkout = () => {
+    Alert.alert("Cancel Workout", "Are you sure you want to cancel the current workout? All progress will be lost.", [
+      { text: "Keep Going", style: "cancel" },
+      {
+        text: "Cancel Workout",
+        style: "destructive",
+        onPress: () => {
+          pauseWorkout()
+          setWorkoutTimer(0)
+          setActiveWorkout(null)
+        },
+      },
+    ])
+  }
+
+  const goToActiveWorkout = () => {
+    if (activeWorkout) {
+      navigation.navigate("ActiveWorkout", { workout: activeWorkout })
+    }
   }
 
   const renderWorkoutItem = ({ item }) => {
@@ -69,16 +104,31 @@ export default function HomeScreen({ navigation }) {
     const isActive = activeWorkout && activeWorkout.id === item.id
 
     return (
-      <View style={[styles.workoutCard, isActive && styles.activeWorkoutCard]}>
+      <View style={[
+        styles.workoutCard, 
+        isActive && isWorkoutRunning && styles.activeWorkoutCard,
+        isActive && !isWorkoutRunning && styles.pausedWorkoutCard
+      ]}>
         <View style={styles.workoutHeader}>
           <Text style={styles.workoutTitle}>{item.title}</Text>
           {isActive && (
-            <View style={styles.activeIndicator}>
-              <View style={styles.activeMainInfo}>
-                <Ionicons name="play-circle" size={16} color="#10b981" />
-                <Text style={styles.activeText}>Active</Text>
-                <Text style={styles.activeTime}>{formatTimerTime(workoutTimer)}</Text>
-              </View>
+            <View style={[
+              styles.activeIndicator,
+              !isWorkoutRunning && styles.pausedIndicator
+            ]}>
+              <TouchableOpacity style={styles.activeMainInfo} onPress={goToActiveWorkout}>
+                <Ionicons 
+                  name={isWorkoutRunning ? "play-circle" : "pause-circle"} 
+                  size={16} 
+                  color={isWorkoutRunning ? "#10b981" : "#f59e0b"} 
+                />
+                <Text style={[styles.activeText, !isWorkoutRunning && styles.pausedText]}>
+                  {isWorkoutRunning ? "Active" : "Paused"}
+                </Text>
+                <Text style={[styles.activeTime, !isWorkoutRunning && styles.pausedTime]}>
+                  {formatTimerTime(workoutTimer)}
+                </Text>
+              </TouchableOpacity>
               {isResting && (
                 <View style={styles.restInfo}>
                   <Ionicons name="pause-circle" size={12} color="#f59e0b" />
@@ -89,9 +139,6 @@ export default function HomeScreen({ navigation }) {
               )}
             </View>
           )}
-          <TouchableOpacity onPress={() => handleDeleteWorkout(item.id, item.title)} style={styles.deleteButton}>
-            <Ionicons name="trash-outline" size={20} color="#ef4444" />
-          </TouchableOpacity>
         </View>
 
         <View style={styles.workoutInfo}>
@@ -115,12 +162,29 @@ export default function HomeScreen({ navigation }) {
             <Text style={styles.viewButtonText}>View</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.startButton, isActive && styles.resumeButton]}
-            onPress={() => startWorkout(item)}
-          >
-            <Text style={styles.startButtonText}>{isActive ? "Resume" : "Start"}</Text>
-          </TouchableOpacity>
+          {isActive ? (
+            <View style={styles.activeControls}>
+              {isWorkoutRunning ? (
+                <TouchableOpacity style={styles.pauseButton} onPress={handlePauseWorkout}>
+                  <Ionicons name="pause" size={16} color="#fff" />
+                  <Text style={styles.buttonText}>Pause</Text>
+                </TouchableOpacity>
+              ) : (
+                <TouchableOpacity style={styles.resumeButton} onPress={handleResumeWorkout}>
+                  <Ionicons name="play" size={16} color="#fff" />
+                  <Text style={styles.buttonText}>Resume</Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.cancelButton} onPress={handleCancelWorkout}>
+                <Ionicons name="close" size={16} color="#fff" />
+                <Text style={styles.buttonText}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <TouchableOpacity style={styles.startButton} onPress={() => startWorkoutHandler(item)}>
+              <Text style={styles.startButtonText}>Start</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     )
@@ -191,6 +255,11 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     backgroundColor: "#f0fdf4",
   },
+  pausedWorkoutCard: {
+    borderColor: "#f59e0b",
+    borderWidth: 2,
+    backgroundColor: "#fef3c7",
+  },
   workoutHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -211,6 +280,9 @@ const styles = StyleSheet.create({
     marginRight: 8,
     minWidth: 120,
   },
+  pausedIndicator: {
+    backgroundColor: "#fed7aa",
+  },
   activeMainInfo: {
     flexDirection: "row",
     alignItems: "center",
@@ -224,11 +296,17 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     marginRight: 6,
   },
+  pausedText: {
+    color: "#f59e0b",
+  },
   activeTime: {
     fontSize: 12,
     color: "#10b981",
     fontWeight: "700",
     fontFamily: "monospace",
+  },
+  pausedTime: {
+    color: "#f59e0b",
   },
   restInfo: {
     flexDirection: "row",
@@ -246,9 +324,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginLeft: 2,
     fontFamily: "monospace",
-  },
-  deleteButton: {
-    padding: 4,
   },
   workoutInfo: {
     marginBottom: 8,
@@ -292,13 +367,48 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
-  resumeButton: {
-    backgroundColor: "#10b981",
-  },
   startButtonText: {
     color: "white",
     fontWeight: "bold",
     fontSize: 14,
+  },
+  activeControls: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+  },
+  pauseButton: {
+    flex: 1,
+    backgroundColor: "#f59e0b",
+    padding: 8,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  resumeButton: {
+    flex: 1,
+    backgroundColor: "#10b981",
+    padding: 8,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  cancelButton: {
+    flex: 1,
+    backgroundColor: "#ef4444",
+    padding: 8,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+  },
+  buttonText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+    marginLeft: 4,
   },
   emptyState: {
     flex: 1,

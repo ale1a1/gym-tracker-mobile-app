@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useReducer, useEffect } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { AppState } from 'react-native'
+import { AppState } from "react-native"
 
 const WorkoutContext = createContext()
 
@@ -71,16 +71,16 @@ export function WorkoutProvider({ children }) {
   // Handle app state changes (foreground/background)
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
-      if (nextAppState === 'active') {
+      if (nextAppState === "active") {
         // App came to foreground - recalculate timers
         recalculateTimers()
-      } else if (nextAppState === 'background' || nextAppState === 'inactive') {
+      } else if (nextAppState === "background" || nextAppState === "inactive") {
         // App going to background - save current state
         saveTimerStates()
       }
     }
 
-    const subscription = AppState.addEventListener('change', handleAppStateChange)
+    const subscription = AppState.addEventListener("change", handleAppStateChange)
     return () => subscription?.remove()
   }, [])
 
@@ -88,27 +88,25 @@ export function WorkoutProvider({ children }) {
   const recalculateTimers = async () => {
     try {
       const now = Date.now()
-      
-      // Recalculate workout timer - FIXED VERSION
+
+      // Recalculate workout timer - THIS IS THE FIX
       const workoutData = await AsyncStorage.getItem("workoutTimerData")
       if (workoutData) {
         const { isRunning, startTime } = JSON.parse(workoutData)
         if (isRunning && startTime) {
           const elapsedSeconds = Math.floor((now - startTime) / 1000)
-          
-          // CRITICAL FIX: Set ALL workout states in the correct order
+
+          // CRITICAL: Set the start time FIRST, then the timer and running state
           dispatch({ type: "SET_WORKOUT_START_TIME", payload: startTime })
           dispatch({ type: "SET_WORKOUT_TIMER", payload: elapsedSeconds })
           dispatch({ type: "SET_WORKOUT_RUNNING", payload: true })
-          
+
           // Save to storage
-          await AsyncStorage.multiSet([
-            ["workoutTimer", elapsedSeconds.toString()],
-            ["isWorkoutRunning", "true"]
-          ])
+          await AsyncStorage.setItem("workoutTimer", elapsedSeconds.toString())
+          await AsyncStorage.setItem("isWorkoutRunning", "true")
         }
       }
-      
+
       // Recalculate rest timer
       const restData = await AsyncStorage.getItem("restTimerData")
       if (restData) {
@@ -116,7 +114,7 @@ export function WorkoutProvider({ children }) {
         if (isResting && startTime && duration) {
           const elapsedSeconds = Math.floor((now - startTime) / 1000)
           const remainingSeconds = Math.max(0, duration - elapsedSeconds)
-          
+
           if (remainingSeconds <= 0) {
             // Rest finished while app was closed
             dispatch({ type: "SET_RESTING", payload: false })
@@ -135,7 +133,7 @@ export function WorkoutProvider({ children }) {
             await AsyncStorage.multiSet([
               ["restTimer", remainingSeconds.toString()],
               ["isResting", "true"],
-              ["restType", type || ""]
+              ["restType", type || ""],
             ])
           }
         }
@@ -150,20 +148,26 @@ export function WorkoutProvider({ children }) {
     try {
       // Save workout timer state
       if (state.isWorkoutRunning && state.workoutStartTime) {
-        await AsyncStorage.setItem("workoutTimerData", JSON.stringify({
-          isRunning: true,
-          startTime: state.workoutStartTime
-        }))
+        await AsyncStorage.setItem(
+          "workoutTimerData",
+          JSON.stringify({
+            isRunning: true,
+            startTime: state.workoutStartTime,
+          }),
+        )
       }
-      
+
       // Save rest timer state
       if (state.isResting && state.restStartTime && state.restDuration) {
-        await AsyncStorage.setItem("restTimerData", JSON.stringify({
-          isResting: true,
-          startTime: state.restStartTime,
-          duration: state.restDuration,
-          type: state.restType
-        }))
+        await AsyncStorage.setItem(
+          "restTimerData",
+          JSON.stringify({
+            isResting: true,
+            startTime: state.restStartTime,
+            duration: state.restDuration,
+            type: state.restType,
+          }),
+        )
       }
     } catch (error) {
       console.error("Error saving timer states:", error)
@@ -193,7 +197,7 @@ export function WorkoutProvider({ children }) {
           // Use timestamp for accuracy
           const elapsedSeconds = Math.floor((Date.now() - state.restStartTime) / 1000)
           const remainingSeconds = Math.max(0, state.restDuration - elapsedSeconds)
-          
+
           if (remainingSeconds <= 0) {
             dispatch({ type: "SET_RESTING", payload: false })
             dispatch({ type: "SET_REST_TIMER", payload: 0 })
@@ -249,7 +253,6 @@ export function WorkoutProvider({ children }) {
 
       // Recalculate timers after loading basic data
       setTimeout(() => recalculateTimers(), 200)
-
     } catch (error) {
       console.error("Error loading workouts:", error)
     }
@@ -318,11 +321,11 @@ export function WorkoutProvider({ children }) {
       // Always get fresh data from storage
       const storedHistory = await AsyncStorage.getItem("workoutHistory")
       const history = storedHistory ? JSON.parse(storedHistory) : []
-      
+
       if (!Array.isArray(history) || !workoutId) {
         return null
       }
-      
+
       return history
         .filter((h) => h && h.originalId === workoutId)
         .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0]
@@ -361,48 +364,45 @@ export function WorkoutProvider({ children }) {
       return
     }
 
-    // CRITICAL FIX: Get the latest workout data from the current state first, then fallback to storage
-    let latestWorkout = state.workouts.find(w => w.id === workout.id)
+    // First, try to get the latest workout data from current state
+    let latestWorkout = (state.workouts || []).find(w => w.id === workout.id)
     
+    // If not found in state, try to get from storage
     if (!latestWorkout) {
-      // If not found in state, get from storage as fallback
-      const storedWorkouts = await AsyncStorage.getItem("workouts")
-      const workouts = storedWorkouts ? JSON.parse(storedWorkouts) : []
-      latestWorkout = workouts.find(w => w.id === workout.id) || workout
+      try {
+        const storedWorkouts = await AsyncStorage.getItem("workouts")
+        const workouts = storedWorkouts ? JSON.parse(storedWorkouts) : []
+        latestWorkout = workouts.find(w => w.id === workout.id)
+      } catch (error) {
+        console.error("Error getting latest workout:", error)
+      }
     }
 
+    // Use the latest workout data if found, otherwise use the passed workout
+    const workoutToUse = latestWorkout || workout
+
     // Get last session data to pre-populate reps
-    const lastSession = await getLastWorkoutSession(latestWorkout.id)
+    const lastSession = await getLastWorkoutSession(workoutToUse.id)
     const workoutWithPrefill = {
-      ...latestWorkout, // Use the latest workout data from state/storage
-      exercises: Array.isArray(latestWorkout.exercises)
-        ? latestWorkout.exercises.map((ex) => {
+      ...workoutToUse,
+      exercises: Array.isArray(workoutToUse.exercises)
+        ? workoutToUse.exercises.map((ex) => {
             if (!ex || typeof ex !== "object") return ex
             const lastExercise = lastSession?.exercises?.find((lastEx) => lastEx && lastEx.id === ex.id)
+            
+            // Use the current exercise's sets count, not the old one
             const targetSets = typeof ex.sets === "number" ? ex.sets : 3
             const targetReps = typeof ex.reps === "number" ? ex.reps : 10
 
-            // CRITICAL FIX: Always create arrays based on current targetSets, not old data
-            let newCompleted = new Array(targetSets).fill(0) // NEW SETS START WITH 0 REPS
-            let newSetsCompleted = new Array(targetSets).fill(false)
-
-            // If we have previous data, preserve what we can
-            if (lastExercise && Array.isArray(lastExercise.completed)) {
-              for (let i = 0; i < Math.min(lastExercise.completed.length, targetSets); i++) {
-                newCompleted[i] = lastExercise.completed[i]
-              }
-            }
-            // Fill remaining slots with targetReps only if no previous data exists
-            else {
-              newCompleted = new Array(targetSets).fill(targetReps)
-            }
-
             return {
               ...ex,
-              completed: newCompleted,
+              completed:
+                lastExercise && Array.isArray(lastExercise.completed)
+                  ? [...lastExercise.completed].slice(0, targetSets).concat(new Array(Math.max(0, targetSets - lastExercise.completed.length)).fill(0))
+                  : new Array(targetSets).fill(targetReps),
               lastPerformance: lastExercise && Array.isArray(lastExercise.completed) ? lastExercise.completed : null,
               isCompleted: false,
-              setsCompleted: newSetsCompleted,
+              setsCompleted: new Array(targetSets).fill(false),
             }
           })
         : [],
@@ -413,21 +413,27 @@ export function WorkoutProvider({ children }) {
   }
 
   const startWorkout = () => {
-    const startTime = Date.now()
+    // Calculate new start time based on current timer value
+    // This ensures the timer continues from where it was paused
+    const newStartTime = Date.now() - (state.workoutTimer * 1000)
+    
     dispatch({ type: "SET_WORKOUT_RUNNING", payload: true })
-    dispatch({ type: "SET_WORKOUT_START_TIME", payload: startTime })
+    dispatch({ type: "SET_WORKOUT_START_TIME", payload: newStartTime })
     saveWorkoutRunning(true)
-    AsyncStorage.setItem("workoutTimerData", JSON.stringify({ isRunning: true, startTime }))
+    AsyncStorage.setItem("workoutTimerData", JSON.stringify({ 
+      isRunning: true, 
+      startTime: newStartTime 
+    }))
   }
 
   const pauseWorkout = () => {
     dispatch({ type: "SET_WORKOUT_RUNNING", payload: false })
-    dispatch({ type: "SET_WORKOUT_START_TIME", payload: null })
     saveWorkoutRunning(false)
     AsyncStorage.removeItem("workoutTimerData")
+    // Keep workoutStartTime so we know it's a paused workout, not a new one
   }
 
-   const finishWorkout = (completedWorkout) => {
+  const finishWorkout = (completedWorkout) => {
     if (!completedWorkout || typeof completedWorkout !== "object") return
 
     const workoutToSave = {
@@ -440,26 +446,6 @@ export function WorkoutProvider({ children }) {
     const updatedHistory = [...(state.workoutHistory || []), workoutToSave]
     dispatch({ type: "SET_WORKOUT_HISTORY", payload: updatedHistory })
     saveWorkoutHistory(updatedHistory)
-
-    // CRITICAL FIX: Update the original workout with any changes made during the active session
-    const originalWorkout = {
-      ...completedWorkout,
-      // Remove the active workout specific properties
-      exercises: completedWorkout.exercises.map(ex => ({
-        id: ex.id,
-        name: ex.name,
-        sets: ex.sets,
-        reps: ex.reps,
-        // Don't save the progress data (completed, setsCompleted, etc.)
-      }))
-    }
-    
-    // Update the workout in the workouts array
-    const updatedWorkouts = (state.workouts || []).map((w) => 
-      w.id === completedWorkout.id ? originalWorkout : w
-    )
-    dispatch({ type: "SET_WORKOUTS", payload: updatedWorkouts })
-    saveWorkouts(updatedWorkouts)
 
     // Clear active workout and timer
     dispatch({ type: "SET_ACTIVE_WORKOUT", payload: null })
@@ -488,7 +474,7 @@ export function WorkoutProvider({ children }) {
     if (typeof time === "number" && !isNaN(time)) {
       dispatch({ type: "SET_WORKOUT_TIMER", payload: time })
       saveWorkoutTimer(time)
-      
+
       if (time === 0) {
         dispatch({ type: "SET_WORKOUT_START_TIME", payload: null })
         AsyncStorage.removeItem("workoutTimerData")
@@ -504,13 +490,13 @@ export function WorkoutProvider({ children }) {
       dispatch({ type: "SET_RESTING", payload: true })
       dispatch({ type: "SET_REST_START_TIME", payload: startTime })
       dispatch({ type: "SET_REST_DURATION", payload: duration })
-      
+
       // Save rest state
       AsyncStorage.multiSet([
         ["restTimerData", JSON.stringify({ isResting: true, startTime, duration, type })],
         ["restTimer", duration.toString()],
         ["isResting", "true"],
-        ["restType", type || ""]
+        ["restType", type || ""],
       ])
     }
   }
