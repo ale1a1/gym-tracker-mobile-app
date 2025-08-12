@@ -15,18 +15,23 @@ return (
     <NavigationContainer>
       <StatusBar style="auto" />
       <Stack.Navigator
-        initialRouteName="Home"
-        screenOptions={{
-          headerStyle: { backgroundColor: "#2563eb" },
-          headerTintColor: "#fff",
-          headerTitleStyle: { fontWeight: "bold" },
-        }}
-      >
-        <Stack.Screen name="Home" component={HomeScreen} options={{ title: "Gym Tracker" }} />
-        <Stack.Screen name="CreateWorkout" component={CreateWorkoutScreen} options={{ title: "Create Workout" }} />
-        <Stack.Screen name="ViewWorkout" component={ViewWorkoutScreen} options={{ title: "View Workout" }} />
-        <Stack.Screen name="ActiveWorkout" component={ActiveWorkoutScreen} options={{ title: "Active Workout" }} />
-      </Stack.Navigator>
+  screenOptions={{
+    title: 'Gym Tracker',
+    headerLeft: () => null, // This removes the back button
+    headerStyle: {
+      backgroundColor: '#2563eb',
+    },
+    headerTintColor: '#fff',
+    headerTitleStyle: {
+      fontWeight: 'bold',
+    },
+  }}
+>
+  <Stack.Screen name="Home" component={HomeScreen} />
+  <Stack.Screen name="ViewWorkout" component={ViewWorkoutScreen} />
+  <Stack.Screen name="ActiveWorkout" component={ActiveWorkoutScreen} />
+  <Stack.Screen name="CreateWorkout" component={CreateWorkoutScreen} />
+</Stack.Navigator>
     </NavigationContainer>
   </WorkoutProvider>
 )

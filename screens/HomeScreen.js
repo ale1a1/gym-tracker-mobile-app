@@ -130,8 +130,9 @@ export default function HomeScreen({ navigation }) {
                 </Text>
               </TouchableOpacity>
               {isResting && (
-                <View style={styles.restInfo}>                 
-                  <Text style={styles.restText} onPress={goToActiveWorkout}>
+                <View style={styles.restInfo}>
+                  <Ionicons name="pause-circle" size={12} color="#f59e0b" />
+                  <Text style={styles.restText}>
                     {restType === "set" ? "Set Rest" : "Exercise Rest"} {formatTimerTime(restTimer)}
                   </Text>
                 </View>
@@ -191,25 +192,33 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate("CreateWorkout")}>
-        <Ionicons name="add" size={24} color="#fff" />
-        <Text style={styles.addButtonText}>Create New Workout</Text>
-      </TouchableOpacity>
+      <View style={styles.header}>
+        <View style={styles.headerSpacer} />
+        <Text style={styles.headerTitle}>My Workouts</Text>
+        <View style={styles.headerSpacer} />
+      </View>
 
-      {workouts.length === 0 ? (
-        <View style={styles.emptyState}>
-          <Ionicons name="barbell-outline" size={64} color="#9ca3af" />
-          <Text style={styles.emptyStateText}>No workouts yet</Text>
-          <Text style={styles.emptyStateSubtext}>Create your first workout to get started!</Text>
-        </View>
-      ) : (
-        <FlatList
-          data={workouts}
-          renderItem={renderWorkoutItem}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.listContainer}
-        />
-      )}
+      <View style={styles.content}>
+        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate("CreateWorkout")}>
+          <Ionicons name="add" size={24} color="#fff" />
+          <Text style={styles.addButtonText}>Create New Workout</Text>
+        </TouchableOpacity>
+
+        {workouts.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Ionicons name="barbell-outline" size={64} color="#9ca3af" />
+            <Text style={styles.emptyStateText}>No workouts yet</Text>
+            <Text style={styles.emptyStateSubtext}>Create your first workout to get started!</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={workouts}
+            renderItem={renderWorkoutItem}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContainer}
+          />
+        )}
+      </View>
     </View>
   )
 }
@@ -218,6 +227,29 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9fafb",
+  },
+  header: {
+    backgroundColor: "#fff",
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerSpacer: {
+    width: 24,
+  },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    textAlign: "center",
+    flex: 1,
+  },
+  content: {
+    flex: 1,
     padding: 16,
   },
   addButton: {
@@ -270,6 +302,7 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
     flex: 1,
+    // Keep workout titles left-aligned - no textAlign: "center"
   },
   activeIndicator: {
     backgroundColor: "#dcfce7",

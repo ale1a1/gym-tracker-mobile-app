@@ -118,10 +118,6 @@ export default function ViewWorkoutScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2563eb" />
-        </TouchableOpacity>
-        
         <Text style={styles.headerTitle}>Workout Details</Text>
         
         <View style={styles.headerActions}>
@@ -286,8 +282,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#111827',
-    flex: 1,
-    textAlign: 'center',
   },
   headerActions: {
     flexDirection: 'row',

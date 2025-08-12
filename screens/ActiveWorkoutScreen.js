@@ -294,9 +294,9 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        {/* <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color="#2563eb" />
-        </TouchableOpacity>
+        </TouchableOpacity> */}
         <Text style={styles.title}>{currentWorkout.title}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity style={styles.headerButton} onPress={finishWorkoutHandler}>
@@ -490,7 +490,7 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#333",
     flex: 1,
-    textAlign: "center",
+    textAlign: "left"
   },
   headerActions: {
     flexDirection: "row",
@@ -507,10 +507,11 @@ const styles = StyleSheet.create({
   timerHeader: {
     backgroundColor: "#2563eb",
     flexDirection: "row",
+    gap: 14,
     padding: 20,
   },
   timerSection: {
-    flex: 1,
+    flex: 0,
     alignItems: "center",
   },
   timerContainer: {
@@ -561,7 +562,7 @@ const styles = StyleSheet.create({
   },
   restTimerActive: {
     backgroundColor: "#f59e0b",
-    padding: 16,
+    padding: 12,
     borderRadius: 12,
     alignItems: "center",
   },
