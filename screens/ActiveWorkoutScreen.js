@@ -169,9 +169,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     updateActiveWorkout(updatedWorkout)
   }
 
-  const markSetCompleted = (exerciseId, setIndex) => {
-    if (!currentWorkout || !Array.isArray(currentWorkout.exercises)) return
-
+  const completeSetAndStartRest = (exerciseId, setIndex) => {
     const exercise = currentWorkout.exercises.find((ex) => ex && ex.id === exerciseId)
     if (!exercise || !Array.isArray(exercise.setsCompleted)) return
 
@@ -210,6 +208,40 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
         }
       }
     }
+  }
+
+  const markSetCompleted = (exerciseId, setIndex) => {
+    if (!currentWorkout || !Array.isArray(currentWorkout.exercises)) return
+
+    const exercise = currentWorkout.exercises.find((ex) => ex && ex.id === exerciseId)
+    if (!exercise || !Array.isArray(exercise.setsCompleted)) return
+
+    const wasCompleted = exercise.setsCompleted[setIndex]
+
+    // If workout is paused and user is trying to complete a set, ask for confirmation
+    if (!isWorkoutRunning && !wasCompleted) {
+      Alert.alert(
+        "Workout Paused",
+        "The workout is currently paused. Completing this set will resume the workout and start the rest timer. Proceed?",
+        [
+          { text: "No", style: "cancel" },
+          {
+            text: "Yes",
+            onPress: () => {
+              // Resume the workout first
+              startWorkout()
+              
+              // Then mark the set as completed and handle rest timer
+              completeSetAndStartRest(exerciseId, setIndex)
+            },
+          },
+        ]
+      )
+      return
+    }
+
+    // If workout is running or user is unchecking a completed set, proceed normally
+    completeSetAndStartRest(exerciseId, setIndex)
   }
 
   const renderSetsGrid = (exercise) => {
