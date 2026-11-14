@@ -66,6 +66,4 @@
 ---
 
 ## Housekeeping
-- [ ] Pick one package manager: there are both `package-lock.json` and `pnpm-lock.yaml`.
-- [ ] Remove `expo-background-fetch` and `expo-task-manager` if they stay unused.
-- [ ] The `weight_step` column in `exercises` is unused (kept with default 2). Drop it in a later migration.
+- [x] One package manager (npm); removed unused expo-background-fetch / expo-task-manager and the old weight_step column.
