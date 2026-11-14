@@ -8,6 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -369,8 +370,27 @@ private fun ActiveWorkoutScreen(
                         )
                     }
                 }
-                if (exercise.row.settings.isNotBlank()) {
-                    item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+                // Settings on the left, a small History chip beside them (same size as the subtitle)
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (exercise.row.settings.isNotBlank()) {
+                            Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text(
+                            "History",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Orange,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(10.dp))
+                                .border(1.dp, Orange, RoundedCornerShape(10.dp))
+                                .clickable { onHistory(exerciseIndex) }
+                                .padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
                 }
                 if (exercise.row.notes.isNotBlank()) {
                     item { Text(exercise.row.notes, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
@@ -439,7 +459,6 @@ private fun ActiveWorkoutScreen(
                 if (exercise.hitTarget && exercise.weight != null) {
                     item { Text("Target hit! Increase the weight next time.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
                 }
-                item { CompactButton(onClick = { onHistory(exerciseIndex) }) { Text("History") } }
             }
 
             item {
