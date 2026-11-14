@@ -7,7 +7,9 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.shape.CircleShape
@@ -309,6 +311,11 @@ private fun ActiveWorkoutScreen(
     // Starts at the top (no centring gap above the timer)
     val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
     var confirmEnd by remember { mutableStateOf(false) }
+    // Every set of every exercise ticked: show the congratulations screen (once, until dismissed)
+    val allDone = live.exercises.isNotEmpty() && live.exercises.all { it.allDone }
+    var completionDismissed by remember { mutableStateOf(false) }
+    LaunchedEffect(allDone) { if (!allDone) completionDismissed = false }
+
     // Full exercise name shown in a small popup when a (truncated) title is tapped
     var fullTitle by remember { mutableStateOf<String?>(null) }
 
@@ -471,6 +478,14 @@ private fun ActiveWorkoutScreen(
             )
         }
 
+        if (allDone && !completionDismissed) {
+            WorkoutCompleteScreen(
+                title = live.workout.title,
+                onFinish = { viewModel.finishWorkout() },
+                onNotYet = { completionDismissed = true },
+            )
+        }
+
         fullTitle?.let { name ->
             // Tap anywhere to close
             Box(
@@ -497,6 +512,44 @@ private fun ActiveWorkoutScreen(
                 onFinish = { confirmEnd = false; viewModel.finishWorkout() },
                 onDiscard = { confirmEnd = false; viewModel.discardWorkout() },
                 onCancel = { confirmEnd = false },
+            )
+        }
+    }
+}
+
+// All sets done: congratulations with the app's bicep; tap to stop the timer and save the workout
+@Composable
+private fun WorkoutCompleteScreen(title: String, onFinish: () -> Unit, onNotYet: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Green).clickable(onClick = onFinish),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Image(
+                painter = painterResource(R.mipmap.ic_launcher),
+                contentDescription = null,
+                modifier = Modifier.size(72.dp).clip(CircleShape),
+            )
+            Text("Congratulations!", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 8.dp))
+            Text(
+                "$title finished",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp),
+            )
+            Text("Tap to finish", fontSize = 13.sp, color = Color(0xFFD1FAE5), modifier = Modifier.padding(top = 6.dp))
+            Text(
+                "Not yet",
+                fontSize = 12.sp,
+                color = Color.White,
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0x33000000))
+                    .clickable(onClick = onNotYet)
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
             )
         }
     }

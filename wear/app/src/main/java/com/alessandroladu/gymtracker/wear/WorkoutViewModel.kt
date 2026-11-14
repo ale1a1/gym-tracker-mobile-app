@@ -215,7 +215,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             }
         } ?: return
         save(live)
-        if (startRest) {
+        val workoutComplete = live.exercises.all { it.allDone }
+        if (startRest && !workoutComplete) {
             // The exercise's own rest wins over the workout's general rule
             if (exerciseFinished) startRest(exerciseRow?.exerciseRest ?: live.workout.exerciseRest, "Exercise rest")
             else startRest(exerciseRow?.setRest ?: live.workout.setRest, "Set rest")
