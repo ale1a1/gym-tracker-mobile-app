@@ -209,7 +209,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     // Typed on the watch keypad; also saved as the workout's weight for next time
     fun setWeight(exerciseIndex: Int, weight: Double?) {
         val exerciseId = _state.value.live?.exercises?.getOrNull(exerciseIndex)?.row?.id ?: return
-        val live = updateLive { live -> live.withExercise(exerciseIndex) { ex -> ex.copy(weight = weight) } } ?: return
+        // Going heavier answers the "Increase the weight today" reminder, so it goes away
+        val live = updateLive { live ->
+            live.withExercise(exerciseIndex) { ex ->
+                val increased = weight != null && ex.weight != null && weight > ex.weight
+                ex.copy(weight = weight, increaseSuggested = ex.increaseSuggested && !increased)
+            }
+        } ?: return
         save(live)
         viewModelScope.launch {
             runCatching { Repository.updateExerciseWeight(exerciseId, weight) }

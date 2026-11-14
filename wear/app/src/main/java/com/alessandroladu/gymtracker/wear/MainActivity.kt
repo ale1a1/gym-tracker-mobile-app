@@ -324,6 +324,7 @@ private fun ActiveWorkoutScreen(
             state = listState,
             contentPadding = padding.withBottomRoom().withTopRoom(50.dp),
             autoCentering = null,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
             state.error?.let { error -> item { ErrorText(error) } }
@@ -354,9 +355,6 @@ private fun ActiveWorkoutScreen(
                         )
                     }
                 }
-                if (exercise.row.settings.isNotBlank()) {
-                    item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
-                }
                 if (exercise.row.notes.isNotBlank()) {
                     item { Text(exercise.row.notes, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
                 }
@@ -372,6 +370,10 @@ private fun ActiveWorkoutScreen(
                     }
                 }
 
+                // Machine settings right under the title
+                if (exercise.row.settings.isNotBlank()) {
+                    item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+                }
                 // One row: sets x reps, weight (tap to type the exact value), history
                 item {
                     Row(
