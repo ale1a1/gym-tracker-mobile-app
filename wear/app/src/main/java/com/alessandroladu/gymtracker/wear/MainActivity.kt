@@ -322,7 +322,7 @@ private fun WorkoutListScreen(
                 var confirmSignOut by remember { mutableStateOf(false) }
                 // Icon buttons: refresh, and sign out (door, red border; second tap confirms)
                 Row(
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 15.dp),
                     horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
