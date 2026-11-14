@@ -385,7 +385,6 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                 <View style={styles.exerciseHeader}>
                   <Text style={styles.exerciseNumber}>{exerciseIndex + 1}</Text>
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
-                  {allSetsCompleted && <Ionicons name="checkmark-circle" size={40} color="#10b981" />}
                 </View>
                 {newRecord && (
                   <View style={styles.recordBadge}>

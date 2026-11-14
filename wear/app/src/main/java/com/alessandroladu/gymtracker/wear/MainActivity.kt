@@ -345,7 +345,7 @@ private fun ActiveWorkoutScreen(
                 item {
                     ListHeader {
                         Text(
-                            "${exerciseIndex + 1}. ${exercise.row.name}" + if (exercise.allDone) "  ✓" else "",
+                            "${exerciseIndex + 1}. ${exercise.row.name}",
                             textAlign = TextAlign.Center,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
