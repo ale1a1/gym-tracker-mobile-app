@@ -302,7 +302,9 @@ private fun WorkoutListScreen(
                             }
                         }
                         Box(
-                            modifier = Modifier.size(38.dp).clip(CircleShape).background(SoftBlue).clickable { onHistory(workout.id) },
+                            modifier = Modifier.size(38.dp).clip(CircleShape).background(SoftBlue)
+                                .then(if (running) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
+                                .clickable { onHistory(workout.id) },
                             contentAlignment = Alignment.Center,
                         ) {
                             Icon(AppIcons.History, contentDescription = "History", tint = Color(0xFF0B1F3A), modifier = Modifier.size(22.dp))
