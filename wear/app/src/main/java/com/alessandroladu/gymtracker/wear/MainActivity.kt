@@ -112,7 +112,12 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
         false -> SignInScreen(state, viewModel, activity)
         // Each screen collects the state itself: the nav graph keeps the first lambdas it was
         // given, so state passed in from here would go stale (taps saved but the screen not updating)
-        true -> SwipeDismissableNavHost(navController = navController, startDestination = "workouts") {
+        true -> {
+          // A workout that was running when the app was closed: go straight back into it
+          LaunchedEffect(Unit) {
+              if (viewModel.state.value.live != null) navController.navigate("workout")
+          }
+          SwipeDismissableNavHost(navController = navController, startDestination = "workouts") {
             composable("workouts") {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 WorkoutListScreen(
@@ -128,9 +133,13 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
                 if (workout == null) {
                     Message("Workout not found")
                 } else {
-                    WorkoutPreviewScreen(state, workout) {
-                        viewModel.startWorkout(workout) { navController.navigate("workout") { popUpTo("workouts") } }
-                    }
+                    val openWorkout = { navController.navigate("workout") { popUpTo("workouts") } }
+                    WorkoutPreviewScreen(
+                        state = state,
+                        workout = workout,
+                        onStart = { viewModel.startWorkout(workout) { openWorkout() } },
+                        onSwitch = { mode -> viewModel.switchWorkout(workout, mode) { openWorkout() } },
+                    )
                 }
             }
             composable("workout") {
@@ -162,6 +171,7 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
                     }
                 }
             }
+          }
         }
     }
 }
@@ -222,28 +232,25 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPre
         ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text("Workouts") } }
             state.error?.let { error -> item { ErrorText(error) } }
-            state.live?.let { live ->
-                item {
-                    Button(
-                        onClick = onContinue,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                    ) { Text("▶ Continue ${live.workout.title}") }
-                }
-            }
             if (state.workouts.isEmpty() && !state.loading) {
                 item { Text("No workouts yet. Create them on the phone.", textAlign = TextAlign.Center) }
             }
             state.workouts.forEach { workout ->
+                val running = state.live?.workout?.id == workout.id
                 item {
                     FilledTonalButton(
-                        onClick = { onPreview(workout.id) },
+                        onClick = { if (running) onContinue() else onPreview(workout.id) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.loading,
+                        colors = if (running) ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White)
+                        else ButtonDefaults.filledTonalButtonColors(),
                     ) {
                         Column {
                             Text(workout.title, fontWeight = FontWeight.Bold)
-                            Text("${workout.exercises.size} exercises", style = MaterialTheme.typography.bodySmall)
+                            Text(
+                                if (running) "▶ In progress · Continue" else "${workout.exercises.size} exercises",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
@@ -407,9 +414,6 @@ private fun ActiveWorkoutScreen(
                     }
                 }
 
-                if (exercise.newRecord) {
-                    item { Text("🏆 New record!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-                }
                 if (exercise.increaseSuggested) {
                     item {
                         // Small orange pill (last time every set hit the target); tap to set the new weight
@@ -555,25 +559,40 @@ private fun RestBadge(label: String, secondsLeft: Long, onSkip: () -> Unit, modi
 
 // A workout before starting it: exercises, sets × reps, weight, settings, and Start
 @Composable
-private fun WorkoutPreviewScreen(state: UiState, workout: WorkoutRow, onStart: () -> Unit) {
+private fun WorkoutPreviewScreen(
+    state: UiState,
+    workout: WorkoutRow,
+    onStart: () -> Unit,
+    onSwitch: (WorkoutViewModel.EndMode) -> Unit,
+) {
     val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
     val running = state.live?.workout?.id == workout.id
+    val other = state.live?.takeIf { !running }
+    var showSwitch by remember { mutableStateOf(false) }
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             // Title with a round green play button beside it
             item {
+                // Long titles wrap; the play button keeps its size and always stays on screen
                 Row(
-                    modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
+                    modifier = Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, top = 14.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
                 ) {
-                    Text(workout.title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        workout.title,
+                        modifier = Modifier.weight(1f, fill = false),
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        lineHeight = 22.sp,
+                    )
                     Box(
                         modifier = Modifier
                             .size(46.dp)
                             .clip(CircleShape)
                             .background(if (state.loading) Color.Gray else Green)
-                            .clickable(enabled = !state.loading, onClick = onStart),
+                            .clickable(enabled = !state.loading, onClick = { if (other != null) showSwitch = true else onStart() }),
                         contentAlignment = Alignment.Center,
                     ) {
                         Text(if (state.loading) "…" else "▶", fontSize = 22.sp, color = Color.White, fontWeight = FontWeight.Bold)
@@ -594,6 +613,88 @@ private fun WorkoutPreviewScreen(state: UiState, workout: WorkoutRow, onStart: (
                         )
                         if (ex.settings.isNotBlank()) Text("⚙ ${ex.settings}", style = MaterialTheme.typography.bodySmall)
                     }
+                }
+            }
+        }
+
+        if (showSwitch && other != null) {
+            SwitchWorkoutDialog(
+                current = other.workout.title,
+                next = workout.title,
+                onChoice = { mode ->
+                    showSwitch = false
+                    onSwitch(mode)
+                },
+                onCancel = { showSwitch = false },
+            )
+        }
+    }
+}
+
+// Another workout is running: finish it, or close it (discard / keep progress for later), then start this one
+@Composable
+private fun SwitchWorkoutDialog(
+    current: String,
+    next: String,
+    onChoice: (WorkoutViewModel.EndMode) -> Unit,
+    onCancel: () -> Unit,
+) {
+    var closing by remember { mutableStateOf(false) }
+    val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xF0000000))) {
+        ScalingLazyColumn(
+            state = listState,
+            autoCentering = null,
+            contentPadding = PaddingValues(top = 36.dp, bottom = 60.dp, start = 10.dp, end = 10.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            item {
+                Text(
+                    "$current is in progress",
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            item {
+                Text(
+                    if (closing) "Close $current and start $next:" else "What do you want to do before starting $next?",
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 6.dp),
+                )
+            }
+            if (!closing) {
+                item {
+                    Button(
+                        onClick = { onChoice(WorkoutViewModel.EndMode.FINISH) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+                    ) { Text("✓ Finish $current", fontWeight = FontWeight.Bold) }
+                }
+                item {
+                    FilledTonalButton(onClick = { closing = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Close $current")
+                    }
+                }
+            } else {
+                item {
+                    FilledTonalButton(
+                        onClick = { onChoice(WorkoutViewModel.EndMode.KEEP_FOR_LATER) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text("Close & save progress") }
+                }
+                item {
+                    Button(
+                        onClick = { onChoice(WorkoutViewModel.EndMode.DISCARD) },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
+                    ) { Text("Close & discard", fontWeight = FontWeight.Bold) }
+                }
+            }
+            item {
+                CompactButton(onClick = { if (closing) closing = false else onCancel() }, modifier = Modifier.padding(top = 4.dp)) {
+                    Text(if (closing) "Back" else "Cancel")
                 }
             }
         }
@@ -727,8 +828,7 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
                         Text(entry.date.format(DateTimeFormatter.ofPattern("EEE d MMM yyyy")), fontWeight = FontWeight.Bold)
                         Text(
                             "${entry.reps.size} sets [${entry.reps.joinToString("-")}]" +
-                                (entry.weight?.let { " · ${formatWeight(it)}" } ?: "") +
-                                (if (entry.record) " 🏆" else ""),
+                                (entry.weight?.let { " · ${formatWeight(it)}" } ?: ""),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }

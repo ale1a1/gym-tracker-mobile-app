@@ -83,7 +83,9 @@ data class SessionWrite(
 )
 
 // ---------- the workout being done on the watch ----------
+// Serializable so it can be kept on the watch (LiveStore) and survive the app being closed
 
+@Serializable
 data class LiveExercise(
     val row: ExerciseRow,
     val weight: Double?,
@@ -92,29 +94,12 @@ data class LiveExercise(
     val lastReps: List<Int>?,
     // Last time every set hit the target at this weight: go heavier today
     val increaseSuggested: Boolean,
-    // Best ever before today (heaviest weight, most reps at it); null = never done
-    val best: PersonalBest? = null,
 ) {
     val allDone get() = done.isNotEmpty() && done.all { it }
     val hitTarget get() = allDone && reps.all { it >= row.reps }
-    val newRecord get() = reps.indices.any { i -> done[i] && isNewRecord(best, weight, reps[i]) }
 }
 
-data class PersonalBest(val weight: Double, val reps: Int)
-
-// Heavier than ever, or the same top weight with more reps. Same rule as the phone (lib/history.js).
-fun isNewRecord(best: PersonalBest?, weight: Double?, reps: Int): Boolean =
-    best != null && weight != null && (weight > best.weight || (weight == best.weight && reps > best.reps))
-
-fun bestOf(sets: List<SetRow>): PersonalBest? =
-    sets.filter { it.completed && it.weight != null }
-        .groupBy { it.sessionId }
-        .values
-        .map { session -> PersonalBest(session.first().weight!!, session.maxOf { it.reps }) }
-        .fold(null as PersonalBest?) { acc, pb ->
-            if (acc == null || pb.weight > acc.weight || (pb.weight == acc.weight && pb.reps > acc.reps)) pb else acc
-        }
-
+@Serializable
 data class LiveWorkout(
     val workout: WorkoutRow,
     val sessionId: String,

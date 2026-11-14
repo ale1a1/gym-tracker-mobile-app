@@ -50,6 +50,23 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     init {
         WorkoutAlerts.createChannels(appContext)
 
+        // A workout that was running when the app was closed or minimised continues where it was
+        LiveStore.load(appContext)?.let { saved ->
+            val restEndsAt = saved.restEndsAtMillis?.takeIf { it > System.currentTimeMillis() }
+            _state.update { it.copy(live = saved.live, restEndsAtMillis = restEndsAt, restLabel = saved.restLabel) }
+            if (restEndsAt != null) startRestUntil(restEndsAt, saved.restLabel)
+        }
+
+        // Keep the running workout on the watch after every change (cleared when it ends)
+        viewModelScope.launch {
+            state.map { Triple(it.live, it.restEndsAtMillis, it.restLabel) }
+                .distinctUntilChanged()
+                .collect { (live, restEndsAt, restLabel) ->
+                    if (live == null) LiveStore.clear(appContext)
+                    else LiveStore.save(appContext, SavedWorkout(live, restEndsAt, restLabel))
+                }
+        }
+
         // Watch-face timer follows the workout: rest countdown, otherwise the workout stopwatch
         viewModelScope.launch {
             state.map { s -> Triple(s.live?.let { Triple(it.workout.title, it.startedAtMillis + it.pausedTotalMillis, it.paused) }, s.restEndsAtMillis, s.restLabel) }
@@ -59,7 +76,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                         workout == null -> WorkoutAlerts.hideOngoing(appContext)
                         workout.third -> WorkoutAlerts.showOngoing(appContext, workout.first, "Paused", 0L, countDown = false)
                         restEndsAt != null -> WorkoutAlerts.showOngoing(appContext, workout.first, restLabel, restEndsAt, countDown = true)
-                        else -> WorkoutAlerts.showOngoing(appContext, workout.first, "Workout", workout.second, countDown = false)
+                        else -> WorkoutAlerts.showOngoing(appContext, workout.first, workout.first, workout.second, countDown = false)
                     }
                 }
         }
@@ -127,8 +144,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     liveSets.getOrNull(i)?.reps ?: lastReps?.getOrNull(i) ?: ex.reps
                 }
                 val done = List(ex.sets) { i -> liveSets.getOrNull(i)?.completed ?: false }
-                val best = bestOf(completed.flatMap { s -> s.sets.filter { it.exerciseId == ex.id } })
-                LiveExercise(ex, ex.weight, reps, done, lastReps, increase, best)
+                LiveExercise(ex, ex.weight, reps, done, lastReps, increase)
             }
 
             LiveWorkout(
@@ -210,38 +226,53 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun finishWorkout() {
+        viewModelScope.launch {
+            endCurrent(EndMode.FINISH)
+            loadWorkouts()
+        }
+    }
+
+    enum class EndMode { FINISH, DISCARD, KEEP_FOR_LATER }
+
+    // Another workout is running: finish it, discard it, or keep its progress for later, then start the new one
+    fun switchWorkout(next: WorkoutRow, mode: EndMode, onReady: () -> Unit) {
+        viewModelScope.launch {
+            endCurrent(mode)
+            startWorkout(next, onReady)
+        }
+    }
+
+    private suspend fun endCurrent(mode: EndMode) {
         val live = _state.value.live ?: return
         skipRest()
         val now = System.currentTimeMillis()
-        viewModelScope.launch {
-            saveLock.withLock {
-                runCatching {
-                    Repository.saveSession(
+        saveLock.withLock {
+            runCatching {
+                when (mode) {
+                    EndMode.FINISH -> Repository.saveSession(
                         session(live, status = "completed", completedAt = Instant.ofEpochMilli(now).toString(), now = now),
                         sets(live),
                     )
-                }.onFailure { e -> _state.update { it.copy(error = "Finish not saved: ${e.message}") } }
-            }
-            _state.update { it.copy(live = null) }
-            loadWorkouts()
+                    EndMode.DISCARD -> Repository.deleteSession(live.sessionId)
+                    // Stays "in progress" in the cloud; opening that workout again continues it
+                    EndMode.KEEP_FOR_LATER -> Repository.saveSession(session(live, "in_progress", null, now), sets(live))
+                }
+            }.onFailure { e -> _state.update { it.copy(error = "Not saved: ${e.message}") } }
         }
+        _state.update { it.copy(live = null) }
     }
 
     // Ends the session on this watch; the live workout (if any) stays saved in the cloud
     fun signOut() {
         skipRest()
+        LiveStore.clear(appContext)
         WorkoutAlerts.hideOngoing(appContext)
         _state.update { UiState(signedIn = false) }
         viewModelScope.launch { runCatching { supabase.auth.signOut() } }
     }
 
     fun discardWorkout() {
-        val live = _state.value.live ?: return
-        skipRest()
-        _state.update { it.copy(live = null) }
-        viewModelScope.launch {
-            saveLock.withLock { runCatching { Repository.deleteSession(live.sessionId) } }
-        }
+        viewModelScope.launch { endCurrent(EndMode.DISCARD) }
     }
 
     // ---------- helpers ----------
@@ -297,14 +328,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    private fun startRest(seconds: Int, label: String) {
+    private fun startRest(seconds: Int, label: String) =
+        startRestUntil(System.currentTimeMillis() + seconds * 1000L, label)
+
+    private fun startRestUntil(endsAt: Long, label: String) {
         restJob?.cancel()
-        val endsAt = System.currentTimeMillis() + seconds * 1000L
         _state.update { it.copy(restEndsAtMillis = endsAt, restLabel = label) }
         // The alarm rings and vibrates even with the app in the background; vibrate in-app only if it failed
         val alarmScheduled = WorkoutAlerts.scheduleRestAlarm(appContext, endsAt)
         restJob = viewModelScope.launch {
-            delay(seconds * 1000L)
+            delay((endsAt - System.currentTimeMillis()).coerceAtLeast(0))
             _state.update { it.copy(restEndsAtMillis = null, restOverAtMillis = System.currentTimeMillis()) }
             if (!alarmScheduled) vibrate()
         }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useLayoutEffect, useMemo } from "react"
+import { useState, useEffect, useRef, useLayoutEffect } from "react"
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
@@ -9,7 +9,6 @@ import KeyboardSafeView from "../components/KeyboardSafeView"
 import VideoButton from "../components/VideoButton"
 import AlternativesBox from "../components/AlternativesBox"
 import HistoryModal from "../components/HistoryModal"
-import { sessionsOf, bestPerExercise, isNewRecord } from "../lib/history"
 import { formatWeight, hitTarget } from "../lib/workoutForm"
 import { useThemedStyles, useTheme } from "../lib/theme"
 
@@ -34,7 +33,6 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     startRest,
     skipRest,
     updateExerciseWeight,
-    workoutHistory,
   } = useWorkout()
 
   const [showCompletionModal, setShowCompletionModal] = useState(false)
@@ -94,12 +92,6 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
       setHasShownModal(true)
     }
   }, [currentWorkout, showCompletionModal, hasShownModal])
-
-  // Best ever per exercise, from finished sessions of this workout
-  const records = useMemo(
-    () => (activeWorkout ? bestPerExercise(sessionsOf(workoutHistory, activeWorkout.id)) : {}),
-    [workoutHistory, activeWorkout?.id],
-  )
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -376,9 +368,6 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
           currentWorkout.exercises.map((exercise, exerciseIndex) => {
             const allSetsCompleted = exercise.setsCompleted && exercise.setsCompleted.every((completed) => completed)
             const hasWeight = exercise.weight !== null && exercise.weight !== undefined
-            const newRecord = (exercise.completed || []).some(
-              (reps, i) => exercise.setsCompleted?.[i] && isNewRecord(records[exercise.id], exercise.weight, reps),
-            )
 
             return (
               <View key={exercise.id} style={[styles.exerciseCard, allSetsCompleted && styles.completedCard]}>
@@ -386,11 +375,6 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                   <Text style={styles.exerciseNumber}>{exerciseIndex + 1}</Text>
                   <Text style={styles.exerciseName}>{exercise.name}</Text>
                 </View>
-                {newRecord && (
-                  <View style={styles.recordBadge}>
-                    <Text style={styles.recordText}>🏆 New record!</Text>
-                  </View>
-                )}
 
                 <View style={styles.exerciseMeta}>
                   <TouchableOpacity style={styles.historyChip} onPress={() => setHistoryExercise(exercise)}>
@@ -572,21 +556,6 @@ const makeStyles = (c) => StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginBottom: 8,
-  },
-  recordBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: c.warningBg,
-    borderColor: "#f59e0b",
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    marginBottom: 10,
-  },
-  recordText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: c.warningText,
   },
   historyChip: {
     flexDirection: "row",

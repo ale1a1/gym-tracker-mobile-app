@@ -8,7 +8,6 @@ import {
   HISTORY_PAGE,
   sessionsOf,
   historyEntries,
-  markRecords,
   startOfMonth,
   startOfWeek,
   shiftPeriod,
@@ -25,7 +24,7 @@ export default function HistoryModal({ visible, onClose, workout, exercise = nul
   const { workoutHistory } = useWorkout()
 
   const entries = useMemo(
-    () => markRecords(historyEntries(sessionsOf(workoutHistory, workout.id), exercise?.id)),
+    () => historyEntries(sessionsOf(workoutHistory, workout.id), exercise?.id),
     [workoutHistory, workout.id, exercise?.id],
   )
 
@@ -100,7 +99,6 @@ export default function HistoryModal({ visible, onClose, workout, exercise = nul
                     <Text style={styles.result}>
                       {ex.reps.length} sets [{ex.reps.join("-")}]
                       {ex.weight !== null ? `  ·  ${formatWeight(ex.weight)}` : ""}
-                      {ex.record ? "  🏆" : ""}
                     </Text>
                   </View>
                 ))}

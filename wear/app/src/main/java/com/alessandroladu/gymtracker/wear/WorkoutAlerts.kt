@@ -16,6 +16,7 @@ import android.media.ToneGenerator
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
@@ -92,9 +93,12 @@ object WorkoutAlerts {
         }
 
         val status = if (baseTimeMillis > 0) {
-            val timer = if (countDown) Status.TimerPart(baseTimeMillis) else Status.StopwatchPart(baseTimeMillis)
+            // Ongoing-activity timers count on the uptime clock (elapsedRealtime), not wall-clock time:
+            // passing wall time made the watch face show 00:00 or a huge number
+            val baseOnUptimeClock = SystemClock.elapsedRealtime() + (baseTimeMillis - System.currentTimeMillis())
+            val timer = if (countDown) Status.TimerPart(baseOnUptimeClock) else Status.StopwatchPart(baseOnUptimeClock)
             Status.Builder()
-                .addTemplate("#label# #time#")
+                .addTemplate("#label# · #time#")
                 .addPart("label", Status.TextPart(text))
                 .addPart("time", timer)
                 .build()
