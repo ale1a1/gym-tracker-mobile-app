@@ -223,6 +223,14 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    // Ends the session on this watch; the live workout (if any) stays saved in the cloud
+    fun signOut() {
+        skipRest()
+        WorkoutAlerts.hideOngoing(appContext)
+        _state.update { UiState(signedIn = false) }
+        viewModelScope.launch { runCatching { supabase.auth.signOut() } }
+    }
+
     fun discardWorkout() {
         val live = _state.value.live ?: return
         skipRest()

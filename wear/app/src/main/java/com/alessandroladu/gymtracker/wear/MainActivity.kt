@@ -9,15 +9,21 @@ import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -44,6 +50,13 @@ import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Card
+import androidx.wear.compose.material3.FilledTonalIconButton
+import androidx.wear.compose.material3.Icon
+import androidx.wear.compose.material3.OutlinedIconButton
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material3.CompactButton
 import androidx.wear.compose.material3.FilledTonalButton
@@ -204,7 +217,7 @@ private fun SignInScreen(state: UiState, viewModel: WorkoutViewModel, activity: 
 private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPreview: (String) -> Unit, onContinue: () -> Unit) {
     val listState = rememberScalingLazyListState()
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text("Workouts") } }
             state.error?.let { error -> item { ErrorText(error) } }
             state.live?.let { live ->
@@ -234,7 +247,30 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPre
                 }
             }
             item {
-                CompactButton(onClick = { viewModel.loadWorkouts() }) { Text(if (state.loading) "Loading…" else "Refresh") }
+                var confirmSignOut by remember { mutableStateOf(false) }
+                // Icon buttons: refresh, and sign out (door, red border; second tap confirms)
+                Row(
+                    modifier = Modifier.padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    FilledTonalIconButton(onClick = { viewModel.loadWorkouts() }, enabled = !state.loading) {
+                        Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
+                    }
+                    if (!confirmSignOut) {
+                        OutlinedIconButton(
+                            onClick = { confirmSignOut = true },
+                            border = BorderStroke(2.dp, Red),
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sign out", tint = Red)
+                        }
+                    } else {
+                        CompactButton(
+                            onClick = { viewModel.signOut() },
+                            colors = ButtonDefaults.buttonColors(containerColor = Red),
+                        ) { Text("Sign out?", color = Color.White, fontWeight = FontWeight.Bold) }
+                    }
+                }
             }
         }
     }
@@ -269,7 +305,7 @@ private fun ActiveWorkoutScreen(
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
             state = listState,
-            contentPadding = padding,
+            contentPadding = padding.withBottomRoom(),
             autoCentering = null,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -365,9 +401,18 @@ private fun ActiveWorkoutScreen(
                 }
 
                 // Weight: tap to type the exact value (no +/-)
+                // Small centred pill: "50 kg ✎"
                 item {
-                    FilledTonalButton(onClick = { onEditWeight(exerciseIndex) }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Weight: ${formatWeight(exercise.weight)}  ✎")
+                    CompactButton(
+                        onClick = { onEditWeight(exerciseIndex) },
+                        colors = ButtonDefaults.filledTonalButtonColors(),
+                    ) {
+                        Text(
+                            "${formatWeight(exercise.weight)}  ✎",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                        )
                     }
                 }
 
@@ -445,24 +490,29 @@ private fun WorkoutPreviewScreen(state: UiState, workout: WorkoutRow, onStart: (
     val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
     val running = state.live?.workout?.id == workout.id
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
-            item { ListHeader { Text(workout.title, textAlign = TextAlign.Center) } }
+        ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
+            // Title with a round green play button beside it
             item {
-                Button(
-                    onClick = onStart,
-                    enabled = !state.loading,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+                Row(
+                    modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Text(
-                        when {
-                            state.loading -> "Starting…"
-                            running -> "▶ Continue"
-                            else -> "▶ Start"
-                        },
-                        fontWeight = FontWeight.Bold,
-                    )
+                    Text(workout.title, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Box(
+                        modifier = Modifier
+                            .size(46.dp)
+                            .clip(CircleShape)
+                            .background(if (state.loading) Color.Gray else Green)
+                            .clickable(enabled = !state.loading, onClick = onStart),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(if (state.loading) "…" else "▶", fontSize = 22.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                    }
                 }
+            }
+            if (running) {
+                item { Text("In progress: tap ▶ to continue", style = MaterialTheme.typography.bodySmall) }
             }
             state.error?.let { error -> item { ErrorText(error) } }
             workout.exercises.forEachIndexed { index, ex ->
@@ -521,7 +571,7 @@ private fun WeightKeypad(initial: Double?, onDone: (Double?) -> Unit) {
     }
 
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { Text(if (text.isEmpty()) "— kg" else "$text kg", fontSize = 28.sp, fontWeight = FontWeight.Bold) }
             listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf(".", "0", "⌫")).forEach { row ->
                 item {
@@ -562,7 +612,7 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
     }
 
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text("History") } }
             item { Text(exercise.name, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
 
@@ -621,7 +671,20 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
 
 // ---------- small pieces ----------
 
+// Extra space at the bottom of lists so the last card can scroll fully into view on the round screen
+@Composable
+private fun PaddingValues.withBottomRoom(): PaddingValues {
+    val dir = LocalLayoutDirection.current
+    return PaddingValues(
+        start = calculateStartPadding(dir),
+        end = calculateEndPadding(dir),
+        top = calculateTopPadding(),
+        bottom = calculateBottomPadding() + 60.dp,
+    )
+}
+
 private val Green = Color(0xFF10B981)
+private val Red = Color(0xFFEF4444)
 
 @Composable
 private fun Message(text: String) {

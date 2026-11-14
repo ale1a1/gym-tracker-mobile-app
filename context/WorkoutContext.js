@@ -666,6 +666,26 @@ export function WorkoutProvider({ children }) {
     }
   }
 
+  // After signing out: drop the local copy and the sync queue (they belong to the old account)
+  const clearLocalData = async () => {
+    skipRest()
+    dispatch({ type: "SET_ACTIVE_WORKOUT", payload: null })
+    dispatch({ type: "SET_WORKOUTS", payload: [] })
+    dispatch({ type: "SET_WORKOUT_HISTORY", payload: [] })
+    dispatch({ type: "SET_WORKOUT_RUNNING", payload: false })
+    dispatch({ type: "SET_WORKOUT_TIMER", payload: 0 })
+    dispatch({ type: "SET_WORKOUT_START_TIME", payload: null })
+    await AsyncStorage.multiRemove([
+      "workouts",
+      "workoutHistory",
+      "activeWorkout",
+      "workoutTimerData",
+      "workoutTimer",
+      "isWorkoutRunning",
+      "syncQueue",
+    ])
+  }
+
   return (
     <WorkoutContext.Provider
       value={{
@@ -684,6 +704,7 @@ export function WorkoutProvider({ children }) {
         skipRest,
         updateExerciseWeight,
         syncWithCloud,
+        clearLocalData,
       }}
     >
       {children}
