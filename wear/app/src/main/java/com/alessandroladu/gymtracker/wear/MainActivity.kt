@@ -396,9 +396,6 @@ private fun ActiveWorkoutScreen(
                         }
                     }
                 }
-                exercise.lastReps?.let { last ->
-                    item { Text("Last ${last.joinToString("-")}", fontSize = 12.sp, color = Color.Gray) }
-                }
 
                 if (exercise.increaseSuggested) {
                     item {
