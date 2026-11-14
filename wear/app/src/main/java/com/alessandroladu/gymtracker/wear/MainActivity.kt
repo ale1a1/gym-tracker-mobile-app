@@ -231,7 +231,13 @@ private fun SignInScreen(state: UiState, viewModel: WorkoutViewModel, activity: 
 private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPreview: (String) -> Unit, onContinue: () -> Unit) {
     val listState = rememberScalingLazyListState()
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(
+            state = listState,
+            contentPadding = padding.withBottomRoom(),
+            autoCentering = null,
+            verticalArrangement = Arrangement.spacedBy(8.dp), // a little space between workouts
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             item { ListHeader { Text("Workouts") } }
             state.error?.let { error -> item { ErrorText(error) { viewModel.clearError() } } }
             if (state.workouts.isEmpty() && !state.loading) {
