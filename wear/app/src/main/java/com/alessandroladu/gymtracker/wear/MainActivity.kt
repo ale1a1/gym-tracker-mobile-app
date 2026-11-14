@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -901,7 +902,7 @@ private fun SwitchWorkoutDialog(
     onCancel: () -> Unit,
 ) {
     Box(modifier = Modifier.fillMaxSize().background(Color(0xF0000000)), contentAlignment = Alignment.Center) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.offset(y = (-16).dp).padding(start = 24.dp, end = 24.dp)) {
             Text(
                 "$current is in progress",
                 fontSize = 15.sp,

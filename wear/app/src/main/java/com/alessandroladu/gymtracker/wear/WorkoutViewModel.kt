@@ -148,7 +148,16 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         runCatching {
             val completed = Repository.completedSessions(workout.id)
             val last = completed.firstOrNull()
-            val existing = Repository.inProgressSession(workout.id)
+            // Resume a session left unfinished (e.g. the app was closed), unless it is old: one
+            // abandoned hours ago would start with a timer of hours, so it is thrown away instead
+            val existing = Repository.inProgressSession(workout.id)?.let { session ->
+                val startedAt = session.startedAt?.let { parseTimestamp(it).toEpochMilli() }
+                if (startedAt != null && System.currentTimeMillis() - startedAt < STALE_SESSION_MILLIS) session
+                else {
+                    runCatching { Repository.deleteSession(session.id) }
+                    null
+                }
+            }
 
             val exercises = workout.exercises.map { ex ->
                 val lastSets = last?.sets.orEmpty().filter { it.exerciseId == ex.id }.sortedBy { it.setIndex }
@@ -331,6 +340,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     enum class EndMode { FINISH, DISCARD }
+
+    private companion object {
+        const val STALE_SESSION_MILLIS = 3 * 60 * 60 * 1000L
+    }
 
     // Another workout is running: finish or discard it, then start the new one
     fun switchWorkout(next: WorkoutRow, mode: EndMode, onReady: () -> Unit) {
