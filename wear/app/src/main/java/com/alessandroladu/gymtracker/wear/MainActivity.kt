@@ -58,7 +58,7 @@ import androidx.wear.compose.material3.OutlinedIconButton
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material3.CompactButton
@@ -321,34 +321,10 @@ private fun ActiveWorkoutScreen(
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
             state = listState,
-            contentPadding = padding.withBottomRoom(),
+            contentPadding = padding.withBottomRoom().withTopRoom(60.dp),
             autoCentering = null,
             modifier = Modifier.fillMaxWidth(),
         ) {
-            item {
-                Row(
-                    modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Text(
-                        formatDuration(live.elapsedMillis(now) / 1000),
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (live.paused) Color(0xFFF59E0B) else Color.Unspecified,
-                    )
-                    if (live.paused) {
-                        CompactButton(onClick = { viewModel.resume() }, colors = ButtonDefaults.buttonColors(containerColor = Green)) {
-                            Text("▶ Resume", color = Color.White, fontWeight = FontWeight.Bold)
-                        }
-                    } else {
-                        CompactButton(onClick = { viewModel.pause() }, colors = ButtonDefaults.buttonColors(containerColor = Orange)) {
-                            Text("Pause", color = Color(0xFF1F1300), fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
             state.error?.let { error -> item { ErrorText(error) } }
 
             // All exercises, one after the other
@@ -363,9 +339,10 @@ private fun ActiveWorkoutScreen(
                         )
                     }
                 }
+                // Target / last reps
                 item {
                     Text(
-                        "Target ${exercise.row.sets} × ${exercise.row.reps}" +
+                        "${exercise.row.sets} × ${exercise.row.reps}" +
                             (exercise.lastReps?.let { "  ·  Last [${it.joinToString("-")}]" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
@@ -380,27 +357,8 @@ private fun ActiveWorkoutScreen(
                         )
                     }
                 }
-                // Settings on the left, a small History chip beside them (same size as the subtitle)
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        if (exercise.row.settings.isNotBlank()) {
-                            Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Text(
-                            "History",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.Bold,
-                            color = SoftBlue,
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .border(1.dp, SoftBlue, RoundedCornerShape(10.dp))
-                                .clickable { onHistory(exerciseIndex) }
-                                .padding(horizontal = 8.dp, vertical = 2.dp),
-                        )
-                    }
+                if (exercise.row.settings.isNotBlank()) {
+                    item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
                 }
                 if (exercise.row.notes.isNotBlank()) {
                     item { Text(exercise.row.notes, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
@@ -417,6 +375,35 @@ private fun ActiveWorkoutScreen(
                     }
                 }
 
+                // Weight (tap to type the exact value) with the history button on its right
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Text(
+                            "${formatWeight(exercise.weight)}  ✎",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Color(0xFF2C2C30))
+                                .clickable { onEditWeight(exerciseIndex) }
+                                .padding(horizontal = 12.dp, vertical = 5.dp),
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(SoftBlue)
+                                .clickable { onHistory(exerciseIndex) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(AppIcons.History, contentDescription = "History", tint = Color(0xFF0B1F3A), modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
+
                 if (exercise.increaseSuggested) {
                     item {
                         // Small orange pill (last time every set hit the target); tap to set the new weight
@@ -430,29 +417,13 @@ private fun ActiveWorkoutScreen(
                             horizontalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
                             Icon(
-                                Icons.Filled.KeyboardArrowUp,
+                                AppIcons.ArrowUpward,
                                 contentDescription = null,
                                 tint = Color(0xFF1F1300),
                                 modifier = Modifier.size(20.dp),
                             )
                             Text("Increase the weight today", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
                         }
-                    }
-                }
-
-                // Weight: tap to type the exact value (no +/-)
-                // Small centred pill: "50 kg ✎"
-                item {
-                    CompactButton(
-                        onClick = { onEditWeight(exerciseIndex) },
-                        colors = ButtonDefaults.filledTonalButtonColors(),
-                    ) {
-                        Text(
-                            "${formatWeight(exercise.weight)}  ✎",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            textAlign = TextAlign.Center,
-                        )
                     }
                 }
 
@@ -473,42 +444,109 @@ private fun ActiveWorkoutScreen(
                     item { Text("Target hit! Increase the weight next time.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
                 }
             }
-
-            item {
-                if (!confirmEnd) {
-                    Button(
-                        onClick = { confirmEnd = true },
-                        modifier = Modifier.padding(top = 12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
-                    ) { Text("End workout", fontWeight = FontWeight.Bold) }
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        Button(onClick = { viewModel.finishWorkout() }, modifier = Modifier.fillMaxWidth()) { Text("✓ Finish & save") }
-                        FilledTonalButton(
-                            onClick = { viewModel.discardWorkout() },
-                            modifier = Modifier.fillMaxWidth(0.85f),
-                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
-                        ) { Text("✕ Discard") }
-                        CompactButton(onClick = { confirmEnd = false }) { Text("Keep going") }
-                    }
-                }
-            }
         }
 
         state.restOverAtMillis?.let { at ->
             RestOverFlash(key = at, onFinished = { viewModel.clearRestOver() })
         }
 
-        state.restEndsAtMillis?.let { endsAt ->
+        val restEndsAt = state.restEndsAtMillis
+        if (restEndsAt != null) {
             RestBadge(
                 label = state.restLabel,
-                secondsLeft = ((endsAt - now) / 1000).coerceAtLeast(0),
+                secondsLeft = ((restEndsAt - now) / 1000).coerceAtLeast(0),
                 onSkip = { viewModel.skipRest() },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
             )
+        } else {
+            WorkoutHeader(
+                elapsedSeconds = live.elapsedMillis(now) / 1000,
+                paused = live.paused,
+                onPauseToggle = { if (live.paused) viewModel.resume() else viewModel.pause() },
+                onStop = { confirmEnd = true },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
+            )
+        }
+
+        if (confirmEnd) {
+            EndWorkoutDialog(
+                title = live.workout.title,
+                onFinish = { confirmEnd = false; viewModel.finishWorkout() },
+                onDiscard = { confirmEnd = false; viewModel.discardWorkout() },
+                onCancel = { confirmEnd = false },
+            )
+        }
+    }
+}
+
+// Sticky header: workout time with round pause/play and stop buttons
+@Composable
+private fun WorkoutHeader(
+    elapsedSeconds: Long,
+    paused: Boolean,
+    onPauseToggle: () -> Unit,
+    onStop: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(26.dp))
+            .background(Color(0xFF1C1C1E))
+            .padding(start = 14.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            formatDuration(elapsedSeconds),
+            fontSize = 22.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (paused) Orange else Color.White,
+        )
+        // Pause (orange, two bars) / Play (green, triangle)
+        Box(
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(if (paused) Green else Orange).clickable(onClick = onPauseToggle),
+            contentAlignment = Alignment.Center,
+        ) {
+            if (paused) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = Color.White, modifier = Modifier.size(24.dp))
+            } else {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    repeat(2) { Box(Modifier.size(width = 4.dp, height = 14.dp).background(Color(0xFF1F1300))) }
+                }
+            }
+        }
+        // Stop (red square)
+        Box(
+            modifier = Modifier.size(36.dp).clip(CircleShape).background(Red).clickable(onClick = onStop),
+            contentAlignment = Alignment.Center,
+        ) {
+            Box(Modifier.size(12.dp).background(Color.White))
+        }
+    }
+}
+
+// Stop pressed: finish and save, discard, or keep going
+@Composable
+private fun EndWorkoutDialog(title: String, onFinish: () -> Unit, onDiscard: () -> Unit, onCancel: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0xF0000000)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.padding(horizontal = 24.dp),
+        ) {
+            Text("End $title?", fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Button(
+                onClick = onFinish,
+                colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+            ) { Text("✓ Finish & save", fontWeight = FontWeight.Bold) }
+            CompactButton(
+                onClick = onDiscard,
+                colors = ButtonDefaults.buttonColors(containerColor = Red),
+            ) { Text("✕ Discard", color = Color.White, fontWeight = FontWeight.Bold) }
+            CompactButton(onClick = onCancel) { Text("Keep going") }
         }
     }
 }
@@ -852,6 +890,18 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
 }
 
 // ---------- small pieces ----------
+
+// Extra space at the top of a list (room for a sticky header drawn over it)
+@Composable
+private fun PaddingValues.withTopRoom(extra: androidx.compose.ui.unit.Dp): PaddingValues {
+    val dir = LocalLayoutDirection.current
+    return PaddingValues(
+        start = calculateStartPadding(dir),
+        end = calculateEndPadding(dir),
+        top = calculateTopPadding() + extra,
+        bottom = calculateBottomPadding(),
+    )
+}
 
 // Extra space at the bottom of lists so the last card can scroll fully into view on the round screen
 @Composable
