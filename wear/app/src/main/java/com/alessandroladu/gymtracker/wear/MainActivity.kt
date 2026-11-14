@@ -333,17 +333,24 @@ private fun ActiveWorkoutScreen(
             live.exercises.forEachIndexed { exerciseIndex, exercise ->
                 item {
                     // Space above each exercise, so it separates from the one before
-                    // Plain text (ListHeader adds a big gap below): space above to separate from
-                    // the exercise before, tight below; one line only, "…" if still too long
-                    Text(
-                        exercise.row.name,
-                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 2.dp, start = 12.dp, end = 12.dp),
-                        textAlign = TextAlign.Center,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    // Title block: space above to separate from the exercise before; the machine
+                    // settings sit right under the name. One line only, "…" if still too long
+                    Column(
+                        modifier = Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 2.dp, start = 12.dp, end = 12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            exercise.row.name,
+                            textAlign = TextAlign.Center,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (exercise.row.settings.isNotBlank()) {
+                            Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+                        }
+                    }
                 }
 
                 if (exercise.row.setRest != null || exercise.row.exerciseRest != null) {
@@ -370,10 +377,6 @@ private fun ActiveWorkoutScreen(
                     }
                 }
 
-                // Machine settings right under the title
-                if (exercise.row.settings.isNotBlank()) {
-                    item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
-                }
                 // One row: sets x reps, weight (tap to type the exact value), history
                 item {
                     Row(
