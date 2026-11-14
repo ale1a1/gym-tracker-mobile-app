@@ -7,7 +7,13 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +44,7 @@ import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Card
+import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material3.CompactButton
 import androidx.wear.compose.material3.FilledTonalButton
 import androidx.wear.compose.material3.ListHeader
@@ -267,28 +274,23 @@ private fun ActiveWorkoutScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             item {
-                Text(
-                    formatDuration(live.elapsedMillis(now) / 1000) + if (live.paused) "  (paused)" else "",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-            item {
-                if (live.paused) {
-                    Button(onClick = { viewModel.resume() }) { Text("▶ Resume", fontWeight = FontWeight.Bold) }
-                } else {
-                    FilledTonalButton(onClick = { viewModel.pause() }) { Text("Pause") }
-                }
-            }
-
-            state.restEndsAtMillis?.let { endsAt ->
-                item {
-                    Button(
-                        onClick = { viewModel.skipRest() },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-                    ) {
-                        Text("${state.restLabel} ${formatDuration(((endsAt - now) / 1000).coerceAtLeast(0))} · Skip")
+                Row(
+                    modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Text(
+                        formatDuration(live.elapsedMillis(now) / 1000),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (live.paused) Color(0xFFF59E0B) else Color.Unspecified,
+                    )
+                    if (live.paused) {
+                        CompactButton(onClick = { viewModel.resume() }, colors = ButtonDefaults.buttonColors(containerColor = Green)) {
+                            Text("▶ Resume", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        CompactButton(onClick = { viewModel.pause() }, colors = ButtonDefaults.filledTonalButtonColors()) { Text("Pause") }
                     }
                 }
             }
@@ -302,6 +304,8 @@ private fun ActiveWorkoutScreen(
                         Text(
                             "${exerciseIndex + 1}. ${exercise.row.name}" + if (exercise.allDone) "  ✓" else "",
                             textAlign = TextAlign.Center,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
                         )
                     }
                 }
@@ -345,9 +349,18 @@ private fun ActiveWorkoutScreen(
                 }
                 if (exercise.increaseSuggested) {
                     item {
-                        Card(onClick = { onEditWeight(exerciseIndex) }, modifier = Modifier.fillMaxWidth()) {
-                            Text("Last time you hit every set. Increase the weight today.", style = MaterialTheme.typography.bodySmall)
-                        }
+                        // Small orange pill (last time every set hit the target); tap to set the new weight
+                        Text(
+                            "⬆ Increase the weight today",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1F1300),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFFF59E0B))
+                                .clickable { onEditWeight(exerciseIndex) }
+                                .padding(horizontal = 10.dp, vertical = 4.dp),
+                        )
                     }
                 }
 
@@ -396,6 +409,33 @@ private fun ActiveWorkoutScreen(
                 }
             }
         }
+
+        state.restEndsAtMillis?.let { endsAt ->
+            RestOverlay(
+                label = state.restLabel,
+                secondsLeft = ((endsAt - now) / 1000).coerceAtLeast(0),
+                onSkip = { viewModel.skipRest() },
+            )
+        }
+    }
+}
+
+// Sticky orange countdown over the whole screen while resting
+@Composable
+private fun RestOverlay(label: String, secondsLeft: Long, onSkip: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0xF2F59E0B)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
+            Text(formatDuration(secondsLeft), fontSize = 56.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
+            CompactButton(
+                onClick = onSkip,
+                modifier = Modifier.padding(top = 8.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F1300)),
+            ) { Text("Skip", color = Color.White, fontWeight = FontWeight.Bold) }
+        }
     }
 }
 
@@ -408,7 +448,12 @@ private fun WorkoutPreviewScreen(state: UiState, workout: WorkoutRow, onStart: (
         ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text(workout.title, textAlign = TextAlign.Center) } }
             item {
-                Button(onClick = onStart, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
+                Button(
+                    onClick = onStart,
+                    enabled = !state.loading,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+                ) {
                     Text(
                         when {
                             state.loading -> "Starting…"
@@ -453,9 +498,9 @@ private fun SetRow(setNumber: Int, reps: Int, done: Boolean, onMinus: () -> Unit
             Text("$reps", fontSize = 28.sp, fontWeight = FontWeight.Bold)
             FilledTonalButton(onClick = onPlus) { Text("+", fontSize = 22.sp) }
         }
-        Button(
+        CompactButton(
             onClick = onToggleDone,
-            modifier = Modifier.fillMaxWidth(0.8f).padding(top = 4.dp),
+            modifier = Modifier.padding(top = 6.dp),
             colors = if (done) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors(),
         ) { Text(if (done) "✓ Done" else "Mark done", fontWeight = FontWeight.Bold) }
     }
@@ -575,6 +620,8 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
 }
 
 // ---------- small pieces ----------
+
+private val Green = Color(0xFF10B981)
 
 @Composable
 private fun Message(text: String) {

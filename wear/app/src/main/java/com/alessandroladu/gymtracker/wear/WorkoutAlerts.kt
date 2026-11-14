@@ -10,8 +10,17 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.AudioAttributes
+import android.media.AudioManager
 import android.media.RingtoneManager
+import android.media.ToneGenerator
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
@@ -131,9 +140,53 @@ object WorkoutAlerts {
         NotificationManagerCompat.from(context).cancel(REST_ID)
     }
 
+    // Rest is over: vibrate and beep as an ALARM ourselves. Wear OS mutes notification sounds and
+    // handles notification vibration its own way, so the notification alone isn't reliable; alarm
+    // usage goes through silent mode (Do Not Disturb set to block alarms can still stop it).
+    fun alertRestFinished(context: Context, onDone: () -> Unit) {
+        Log.i("GymTracker", "Rest finished: vibrate + beep")
+        vibrateAlarm(context)
+
+        val audio = context.getSystemService(AudioManager::class.java)
+        val previousVolume = audio.getStreamVolume(AudioManager.STREAM_ALARM)
+        // Loud enough to hear in the gym, then put the alarm volume back
+        runCatching { audio.setStreamVolume(AudioManager.STREAM_ALARM, audio.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0) }
+
+        val tone = runCatching { ToneGenerator(AudioManager.STREAM_ALARM, ToneGenerator.MAX_VOLUME) }.getOrNull()
+        val handler = Handler(Looper.getMainLooper())
+        listOf(0L, 450L, 900L).forEach { delay ->
+            handler.postDelayed({ tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 300) }, delay)
+        }
+        handler.postDelayed({
+            tone?.release()
+            runCatching { audio.setStreamVolume(AudioManager.STREAM_ALARM, previousVolume, 0) }
+            onDone()
+        }, 1700L)
+
+        showRestFinished(context)
+    }
+
+    private fun vibrateAlarm(context: Context) {
+        val vibrator = if (Build.VERSION.SDK_INT >= 31) {
+            context.getSystemService(VibratorManager::class.java).defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Vibrator::class.java)
+        }
+        val effect = VibrationEffect.createWaveform(longArrayOf(0, 600, 200, 600, 200, 600), -1)
+        if (Build.VERSION.SDK_INT >= 33) {
+            vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(effect, AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_ALARM).build())
+        }
+    }
+
+    // Visual "Rest is over" card; sound and vibration come from alertRestFinished
     fun showRestFinished(context: Context) {
         if (!canNotify(context)) return
         val notification = NotificationCompat.Builder(context, REST_CHANNEL)
+            .setSilent(true)
             .setSmallIcon(R.drawable.ic_stat_bicep)
             .setContentTitle("Rest is over 💪")
             .setContentText("Time for your next set")
@@ -147,9 +200,11 @@ object WorkoutAlerts {
     }
 }
 
+// Fired by AlarmManager when the rest ends: works with the app open, in the background or closed
 class RestAlarmReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        val pending = goAsync() // keep the process alive while the beeps play
         WorkoutAlerts.createChannels(context)
-        WorkoutAlerts.showRestFinished(context)
+        WorkoutAlerts.alertRestFinished(context) { pending.finish() }
     }
 }
