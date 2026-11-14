@@ -388,6 +388,7 @@ private fun ActiveWorkoutScreen(
 
     // Full exercise name shown in a small popup when a (truncated) title is tapped
     var fullTitle by remember { mutableStateOf<String?>(null) }
+    var altsOpen by remember { mutableStateOf<Int?>(null) } // exercise whose alternatives are showing
 
     // Ticks once a second for the stopwatch and the rest countdown
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -437,15 +438,45 @@ private fun ActiveWorkoutScreen(
                 if (exercise.row.notes.isNotBlank()) {
                     item { Text(exercise.row.notes, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
                 }
-                exercise.row.alternatives.forEach { alt ->
+                // "Alternatives ▾" opens the names; tapping one swaps it in for today
+                if (exercise.row.alternatives.isNotEmpty()) {
+                    val open = altsOpen == exerciseIndex
                     item {
                         Text(
-                            "Alt: ${alt.name}" + (if (alt.sets != null && alt.reps != null) " ${alt.sets}×${alt.reps}" else "") +
-                                (if (alt.weight != null) " · ${formatWeight(alt.weight)}" else "") +
-                                (if (alt.settings.isNotBlank()) " (${alt.settings})" else ""),
-                            style = MaterialTheme.typography.bodySmall,
-                            textAlign = TextAlign.Center,
+                            "⇄ Alternatives " + if (open) "▴" else "▾",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .padding(bottom = 2.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (open) StepperGrey else Color(0xFF26262A))
+                                .clickable { altsOpen = if (open) null else exerciseIndex }
+                                .padding(horizontal = 12.dp, vertical = 4.dp),
                         )
+                    }
+                    if (open) {
+                        exercise.row.alternatives.forEachIndexed { altIndex, alt ->
+                            item {
+                                Text(
+                                    alt.name,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .padding(horizontal = 16.dp)
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(14.dp))
+                                        .background(StepperGrey)
+                                        .clickable {
+                                            altsOpen = null
+                                            viewModel.swapExercise(exerciseIndex, altIndex)
+                                        }
+                                        .padding(horizontal = 10.dp, vertical = 7.dp),
+                                )
+                            }
+                        }
                     }
                 }
 

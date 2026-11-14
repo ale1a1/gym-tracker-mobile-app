@@ -6,7 +6,7 @@ import { getYouTubeId, getYouTubeEmbedHtml } from "../lib/youtube"
 import { useThemedStyles } from "../lib/theme"
 
 // One video opens straight in the player; several open a list first
-export default function VideoButton({ videos }) {
+export default function VideoButton({ videos, style }) {
   const styles = useThemedStyles(makeStyles)
   const [showList, setShowList] = useState(false)
   const [playingUrl, setPlayingUrl] = useState(null)
@@ -23,7 +23,7 @@ export default function VideoButton({ videos }) {
 
   return (
     <>
-      <TouchableOpacity style={styles.button} onPress={handlePress}>
+      <TouchableOpacity style={[styles.button, style]} onPress={handlePress}>
         <Ionicons name="logo-youtube" size={16} color="#ef4444" />
         <Text style={styles.buttonText}>{urls.length === 1 ? "Video" : `Videos (${urls.length})`}</Text>
       </TouchableOpacity>

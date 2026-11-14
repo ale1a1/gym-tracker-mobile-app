@@ -4,7 +4,6 @@ import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
 import WeightControl from "../components/WeightControl"
 import VideoButton from "../components/VideoButton"
-import AlternativesBox from "../components/AlternativesBox"
 import HistoryModal from "../components/HistoryModal"
 import EndWorkoutDialog from "../components/EndWorkoutDialog"
 import { formatClock } from "../lib/time"
@@ -34,12 +33,14 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     startRest,
     skipRest,
     updateExerciseWeight,
+    swapExercise,
   } = useWorkout()
 
   const [showEnd, setShowEnd] = useState(false)
   const [showComplete, setShowComplete] = useState(false)
   const [historyExercise, setHistoryExercise] = useState(null)
   const [weightEditing, setWeightEditing] = useState(null) // exercise id whose weight editor is open
+  const [altsOpen, setAltsOpen] = useState(null) // exercise index whose alternatives dropdown is open
   const isFinishing = useRef(false)
   const hasAutoStarted = useRef(false)
 
@@ -181,8 +182,9 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent} keyboardShouldPersistTaps="handled">
         {currentWorkout.exercises.map((exercise, exerciseIndex) => {
           const done = Array.isArray(exercise.setsCompleted) && exercise.setsCompleted.every(Boolean)
-          const hasExtras =
-            !!exercise.notes || (exercise.videos && exercise.videos.length > 0) || (exercise.alternatives && exercise.alternatives.length > 0)
+          const hasVideo = exercise.videos && exercise.videos.filter(Boolean).length > 0
+          const alternatives = (exercise.alternatives || []).filter((alt) => alt && alt.name)
+          const open = altsOpen === exerciseIndex
 
           return (
             <View key={exercise.id} style={[styles.exercise, done && styles.exerciseDone]}>
@@ -193,6 +195,42 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                 <Text style={styles.settings} numberOfLines={2}>
                   {exercise.settings}
                 </Text>
+              )}
+
+              {/* Video and alternatives, centred under the name */}
+              {(hasVideo || alternatives.length > 0) && (
+                <View style={styles.chips}>
+                  <VideoButton videos={exercise.videos} />
+                  {alternatives.length > 0 && (
+                    <TouchableOpacity style={[styles.altChip, open && styles.altChipOpen]} onPress={() => setAltsOpen(open ? null : exerciseIndex)}>
+                      <Ionicons name="swap-horizontal" size={16} color={theme.text} />
+                      <Text style={styles.altChipText}>Alternatives</Text>
+                      <Ionicons name={open ? "chevron-up" : "chevron-down"} size={16} color={theme.text} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              )}
+              {/* Tap a name: it takes this exercise's place for today */}
+              {open && (
+                <View style={styles.altList}>
+                  {alternatives.map((alt, altIndex) => (
+                    <TouchableOpacity
+                      key={alt.id || altIndex}
+                      style={styles.altRow}
+                      onPress={() => {
+                        setAltsOpen(null)
+                        swapExercise(exerciseIndex, exercise.alternatives.indexOf(alt))
+                      }}
+                    >
+                      <Text style={styles.altName} numberOfLines={1}>
+                        {alt.name}
+                      </Text>
+                      <Text style={styles.altTarget}>
+                        {alt.sets || exercise.sets} × {alt.reps || exercise.reps}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
               )}
 
               {/* 4 × 10 · weight · history */}
@@ -225,13 +263,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                 </Text>
               )}
 
-              {hasExtras && (
-                <View style={styles.extras}>
-                  {!!exercise.notes && <Text style={styles.notes}>{exercise.notes}</Text>}
-                  <VideoButton videos={exercise.videos} />
-                  <AlternativesBox alternatives={exercise.alternatives} />
-                </View>
-              )}
+              {!!exercise.notes && <Text style={styles.notes}>{exercise.notes}</Text>}
 
               {/* One row per set: − reps + ✓ */}
               <View style={styles.sets}>
@@ -463,16 +495,62 @@ const makeStyles = (c) =>
       textAlign: "center",
       marginTop: 8,
     },
-    extras: {
-      marginTop: 10,
-      gap: 8,
+    chips: {
+      flexDirection: "row",
+      justifyContent: "center",
       alignItems: "center",
+      flexWrap: "wrap",
+      gap: 8,
+      marginTop: 10,
+    },
+    altChip: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      backgroundColor: c.subtle,
+      borderRadius: 16,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+    },
+    altChipOpen: {
+      backgroundColor: c.stepper,
+    },
+    altChipText: {
+      fontSize: 13,
+      fontWeight: "700",
+      color: c.text,
+    },
+    altList: {
+      marginTop: 8,
+      backgroundColor: c.subtle,
+      borderRadius: 18,
+      overflow: "hidden",
+    },
+    altRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      borderBottomColor: c.border,
+    },
+    altName: {
+      flex: 1,
+      fontSize: 15,
+      fontWeight: "700",
+      color: c.text,
+    },
+    altTarget: {
+      fontSize: 13,
+      color: c.textMuted,
+      marginLeft: 8,
     },
     notes: {
       fontSize: 13,
       color: c.textMuted,
       fontStyle: "italic",
       textAlign: "center",
+      marginTop: 8,
     },
     sets: {
       marginTop: 14,

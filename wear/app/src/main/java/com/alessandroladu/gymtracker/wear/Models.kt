@@ -70,6 +70,10 @@ data class SessionRow(
     @SerialName("session_sets") val sets: List<SetRow> = emptyList(),
 )
 
+// Just the alternatives column of an exercise (to save an alternative's new weight)
+@Serializable
+data class AlternativesUpdate(val alternatives: List<AlternativeRow>)
+
 // Written without defaults so every column is always sent (nulls included)
 @Serializable
 data class SessionWrite(
@@ -94,6 +98,8 @@ data class LiveExercise(
     val lastReps: List<Int>?,
     // Last time every set hit the target at this weight: go heavier today
     val increaseSuggested: Boolean,
+    // Saved exercise whose place this one takes today (set when an alternative was swapped in)
+    val slotId: String? = null,
 ) {
     val allDone get() = done.isNotEmpty() && done.all { it }
     val hitTarget get() = allDone && reps.all { it >= row.reps }

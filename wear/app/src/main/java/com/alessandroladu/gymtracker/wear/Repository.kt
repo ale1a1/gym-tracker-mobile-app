@@ -81,4 +81,8 @@ object Repository {
     suspend fun updateExerciseWeight(exerciseId: String, weight: Double?) {
         supabase.from("exercises").update({ set("weight", weight) }) { filter { eq("id", exerciseId) } }
     }
+
+    suspend fun updateExerciseAlternatives(exerciseId: String, alternatives: List<AlternativeRow>) {
+        supabase.from("exercises").update(AlternativesUpdate(alternatives)) { filter { eq("id", exerciseId) } }
+    }
 }

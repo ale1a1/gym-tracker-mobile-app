@@ -18,6 +18,12 @@ import { showStopwatch, showCountdown, showStatic, hideLiveTimer } from "../modu
 
 const WorkoutContext = createContext()
 
+// Reps to start from: what was done last time (trimmed/padded to the sets), else the target
+function prefillReps(lastExercise, sets, reps) {
+  if (!lastExercise || !Array.isArray(lastExercise.completed)) return new Array(sets).fill(reps)
+  return [...lastExercise.completed].slice(0, sets).concat(new Array(Math.max(0, sets - lastExercise.completed.length)).fill(0))
+}
+
 const initialState = {
   workouts: [],
   activeWorkout: null,
@@ -496,10 +502,7 @@ export function WorkoutProvider({ children }) {
               // Last time every set hit the target at this same weight: time to go heavier
               increaseSuggested:
                 currentWeight !== null && hitTarget(lastExercise) && lastWeight !== null && currentWeight <= lastWeight,
-              completed:
-                lastExercise && Array.isArray(lastExercise.completed)
-                  ? [...lastExercise.completed].slice(0, targetSets).concat(new Array(Math.max(0, targetSets - lastExercise.completed.length)).fill(0))
-                  : new Array(targetSets).fill(targetReps),
+              completed: prefillReps(lastExercise, targetSets, targetReps),
               lastPerformance: lastExercise && Array.isArray(lastExercise.completed) ? lastExercise.completed : null,
               isCompleted: false,
               setsCompleted: new Array(targetSets).fill(false),
@@ -657,6 +660,58 @@ export function WorkoutProvider({ children }) {
     clearRestTimerData()
   }
 
+  // Today only: puts alternative n in place of the exercise at exerciseIndex. The exercise that was
+  // there becomes one of its alternatives, so you can switch back. The saved workout doesn't change.
+  const swapExercise = (exerciseIndex, alternativeIndex) => {
+    const live = state.activeWorkout
+    const current = live?.exercises?.[exerciseIndex]
+    const alt = current?.alternatives?.[alternativeIndex]
+    if (!alt) return
+
+    const sets = alt.sets || current.sets
+    const reps = alt.reps || current.reps
+    const weight = alt.weight ?? null
+    // Reps from the last session where this alternative was done
+    const last = [...(state.workoutHistory || [])]
+      .filter((h) => h && h.originalId === live.id && h.completedAt)
+      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))
+      .map((h) => h.exercises?.find((ex) => ex && alt.id && ex.id === alt.id))
+      .find(Boolean)
+    const lastWeight = last ? (last.weight ?? null) : null
+
+    const swapped = {
+      ...current, // keeps this slot's rest times
+      id: alt.id || newId(),
+      name: alt.name,
+      sets,
+      reps,
+      weight,
+      settings: alt.settings || "",
+      notes: alt.notes || "",
+      videos: alt.videos || [],
+      alternatives: [
+        {
+          id: current.id,
+          name: current.name,
+          sets: current.sets,
+          reps: current.reps,
+          weight: current.weight ?? null,
+          settings: current.settings || "",
+          notes: current.notes || "",
+          videos: current.videos || [],
+        },
+        ...current.alternatives.filter((_, i) => i !== alternativeIndex),
+      ],
+      lastWeight,
+      increaseSuggested: weight !== null && hitTarget(last) && lastWeight !== null && weight <= lastWeight,
+      completed: prefillReps(last, sets, reps),
+      lastPerformance: last && Array.isArray(last.completed) ? last.completed : null,
+      isCompleted: false,
+      setsCompleted: new Array(sets).fill(false),
+    }
+    updateActiveWorkout({ ...live, exercises: live.exercises.map((ex, i) => (i === exerciseIndex ? swapped : ex)) })
+  }
+
   // Changing the weight during a workout also updates the saved workout, so next time starts from it
   const updateExerciseWeight = (exerciseId, weight) => {
     if (state.activeWorkout) {
@@ -678,7 +733,13 @@ export function WorkoutProvider({ children }) {
     if (template) {
       updateWorkout({
         ...template,
-        exercises: template.exercises.map((ex) => (ex.id === exerciseId ? { ...ex, weight } : ex)),
+        exercises: template.exercises.map((ex) =>
+          ex.id === exerciseId
+            ? { ...ex, weight }
+            : (ex.alternatives || []).some((alt) => alt && alt.id === exerciseId)
+              ? { ...ex, alternatives: ex.alternatives.map((alt) => (alt && alt.id === exerciseId ? { ...alt, weight } : alt)) }
+              : ex,
+        ),
       })
     }
   }
@@ -722,6 +783,7 @@ export function WorkoutProvider({ children }) {
         startRest,
         skipRest,
         updateExerciseWeight,
+        swapExercise,
         syncWithCloud,
         clearLocalData,
       }}

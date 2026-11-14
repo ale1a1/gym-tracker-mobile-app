@@ -234,8 +234,61 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // Typed on the watch keypad; also saved as the workout's weight for next time
+    // Today only: alternative n takes this exercise's place; the exercise it replaces becomes one of
+    // its alternatives (to switch back). The saved workout doesn't change.
+    fun swapExercise(exerciseIndex: Int, alternativeIndex: Int) {
+        val current = _state.value.live?.exercises?.getOrNull(exerciseIndex) ?: return
+        val alt = current.row.alternatives.getOrNull(alternativeIndex) ?: return
+        val row = current.row
+        val sets = alt.sets ?: row.sets
+        val reps = alt.reps ?: row.reps
+        val newRow = row.copy(
+            id = alt.id ?: UUID.randomUUID().toString(),
+            name = alt.name,
+            sets = sets,
+            reps = reps,
+            weight = alt.weight,
+            settings = alt.settings,
+            notes = alt.notes,
+            alternatives = listOf(
+                AlternativeRow(
+                    id = row.id, name = row.name, sets = row.sets, reps = row.reps,
+                    weight = current.weight, settings = row.settings, notes = row.notes,
+                ),
+            ) + row.alternatives.filterIndexed { i, _ -> i != alternativeIndex },
+        )
+        val slotId = current.slotId ?: row.id
+        val swapped = LiveExercise(newRow, alt.weight, List(sets) { reps }, List(sets) { false }, null, false, slotId)
+        val live = updateLive { live -> live.withExercise(exerciseIndex) { swapped } } ?: return
+        save(live)
+
+        // Then start from the reps of the last time this alternative was done
+        viewModelScope.launch {
+            val lastSets = runCatching { Repository.completedSessions(live.workout.id) }.getOrNull()
+                ?.firstNotNullOfOrNull { session ->
+                    session.sets.filter { it.exerciseId == newRow.id }.sortedBy { it.setIndex }.takeIf { it.isNotEmpty() }
+                } ?: return@launch
+            val lastReps = lastSets.map { it.reps }
+            val lastWeight = lastSets.first().weight
+            val hit = lastSets.size >= sets && lastSets.all { it.completed && it.reps >= it.targetReps }
+            val updated = updateLive { l ->
+                l.withExercise(exerciseIndex) { ex ->
+                    if (ex.row.id != newRow.id || ex.done.any { it }) ex
+                    else ex.copy(
+                        reps = List(sets) { i -> lastReps.getOrNull(i) ?: reps },
+                        lastReps = lastReps,
+                        increaseSuggested = ex.weight != null && lastWeight != null && hit && ex.weight <= lastWeight,
+                    )
+                }
+            } ?: return@launch
+            save(updated)
+        }
+    }
+
     fun setWeight(exerciseIndex: Int, weight: Double?) {
-        val exerciseId = _state.value.live?.exercises?.getOrNull(exerciseIndex)?.row?.id ?: return
+        val exercise = _state.value.live?.exercises?.getOrNull(exerciseIndex) ?: return
+        val exerciseId = exercise.row.id
+        val slotId = exercise.slotId
         // Going heavier answers the "Increase the weight today" reminder, so it goes away
         val live = updateLive { live ->
             live.withExercise(exerciseIndex) { ex ->
@@ -245,8 +298,18 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         } ?: return
         save(live)
         viewModelScope.launch {
-            runCatching { Repository.updateExerciseWeight(exerciseId, weight) }
-                .onFailure { e -> fail("Weight not saved to the cloud yet.", e) }
+            runCatching {
+                if (slotId == null || slotId == exerciseId) Repository.updateExerciseWeight(exerciseId, weight)
+                else {
+                    // A swapped-in alternative: its weight lives in the saved exercise's alternatives
+                    val saved = live.workout.exercises.find { it.id == slotId } ?: return@runCatching
+                    val alternatives = saved.alternatives.map { if (it.id == exerciseId) it.copy(weight = weight) else it }
+                    Repository.updateExerciseAlternatives(slotId, alternatives)
+                    updateLive { l ->
+                        l.copy(workout = l.workout.copy(exercises = l.workout.exercises.map { if (it.id == slotId) it.copy(alternatives = alternatives) else it }))
+                    }?.let { save(it) }
+                }
+            }.onFailure { e -> fail("Weight not saved to the cloud yet.", e) }
         }
     }
 

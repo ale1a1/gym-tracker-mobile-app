@@ -114,6 +114,7 @@ export default function HomeScreen({ navigation }) {
         renderItem={renderWorkout}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.list}
+        ListFooterComponentStyle={styles.footerWrap}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyEmoji}>💪</Text>
@@ -220,6 +221,11 @@ const makeStyles = (c) =>
     },
     runningEditRound: {
       backgroundColor: "rgba(255,255,255,0.22)",
+    },
+    // Sync and Appearance sit at the very bottom of the screen
+    footerWrap: {
+      flex: 1,
+      justifyContent: "flex-end",
     },
     footer: {
       marginTop: 20,
