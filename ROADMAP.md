@@ -45,17 +45,25 @@
 ---
 
 ## ⌚ Pixel Watch (Wear OS)
-- Native Kotlin app (Compose for Wear OS). Expo/React Native can't build Wear OS apps.
+- Native Kotlin app (Compose for Wear OS) in `wear/`. Expo/React Native can't build Wear OS apps. Same app id and signing key as the phone, same Supabase tables.
 - **Split:** the phone creates and edits workouts. The watch is only for doing a workout. Workouts sync from the phone through Supabase (same Google account).
+- Build: `cd wear` then `gradlew.bat :app:assembleRelease`. It reads the Supabase and Google ids from `../.env.local` and the key from `C:/p/keys`. Install with adb over Wi-Fi.
+
+### Done (first version, to test on the watch)
+- [x] Google sign-in (Credential Manager) into the same Supabase account as the phone.
+- [x] Workout list synced from Supabase, with a Refresh button.
+- [x] Start a workout, or **resume** one already in progress (e.g. started on the phone). Reps are prefilled from last time.
+- [x] Exercise screen: stopwatch, name, target, machine settings, last reps, and the "Increase the weight today" flag. Prev/Next between exercises.
+- [x] Reps +/− per set, and a set-done tick that starts the rest countdown (set or exercise rest) with wrist vibration. Tap to skip.
+- [x] Weight: tap it to open a big keypad with decimals (e.g. 99.5). It is saved to the session and as the workout's weight. No +/− for weight.
+- [x] Real-time saving of every change to the same live session as the phone. Finish & save, or discard.
+- [x] The screen stays on during a workout so the timers keep running.
 
 ### To do
-- [ ] Google sign-in on the watch (same account as the phone).
-- [ ] Pick a workout from the synced list.
-- [ ] Current exercise screen: name, target sets × reps, weight, machine settings, and the "increase the weight" flag.
-- [ ] Reps: +/− per set. Tap "set done", which starts the rest countdown with wrist vibration.
-- [ ] Weight: tap it to open a big numeric entry with decimals (e.g. 99.5). No +/− for weight.
-- [ ] Workout stopwatch plus an ongoing activity on the watch face.
-- [ ] Every change saved to the live session in real time, the same as the phone.
+- [ ] Test on the Pixel Watch: sign-in, sync, rest vibration.
+- [ ] Ongoing activity (timer on the watch face) and rest alerts when the app is in the background.
+- [ ] Live updates between phone and watch while both are open (Supabase Realtime).
+- [ ] App icon.
 
 ---
 
