@@ -33,6 +33,8 @@ data class UiState(
     val live: LiveWorkout? = null,
     val restEndsAtMillis: Long? = null,
     val restLabel: String = "",
+    // Set when a rest runs out with the app open: shows the "Rest is over" flash
+    val restOverAtMillis: Long? = null,
 )
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
@@ -199,6 +201,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
+    fun clearRestOver() = _state.update { it.copy(restOverAtMillis = null) }
+
     fun skipRest() {
         restJob?.cancel()
         WorkoutAlerts.cancelRestAlarm(appContext)
@@ -301,7 +305,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val alarmScheduled = WorkoutAlerts.scheduleRestAlarm(appContext, endsAt)
         restJob = viewModelScope.launch {
             delay(seconds * 1000L)
-            _state.update { it.copy(restEndsAtMillis = null) }
+            _state.update { it.copy(restEndsAtMillis = null, restOverAtMillis = System.currentTimeMillis()) }
             if (!alarmScheduled) vibrate()
         }
     }

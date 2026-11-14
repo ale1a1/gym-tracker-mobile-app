@@ -481,6 +481,10 @@ private fun ActiveWorkoutScreen(
             }
         }
 
+        state.restOverAtMillis?.let { at ->
+            RestOverFlash(key = at, onFinished = { viewModel.clearRestOver() })
+        }
+
         state.restEndsAtMillis?.let { endsAt ->
             RestBadge(
                 label = state.restLabel,
@@ -488,6 +492,34 @@ private fun ActiveWorkoutScreen(
                 onSkip = { viewModel.skipRest() },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
             )
+        }
+    }
+}
+
+// Full-screen "Rest is over" that blinks for about a second, then goes away by itself
+@Composable
+private fun RestOverFlash(key: Long, onFinished: () -> Unit) {
+    var visible by remember(key) { mutableStateOf(true) }
+    LaunchedEffect(key) {
+        repeat(3) {
+            visible = true
+            delay(280)
+            visible = false
+            delay(120)
+        }
+        visible = true
+        delay(400)
+        onFinished()
+    }
+    Box(
+        modifier = Modifier.fillMaxSize().background(if (visible) Green else Color.Black),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (visible) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("💪", fontSize = 40.sp)
+                Text("Rest is over", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            }
         }
     }
 }
