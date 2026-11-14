@@ -69,7 +69,7 @@ object WorkoutAlerts {
     fun showOngoing(context: Context, title: String, text: String, baseTimeMillis: Long, countDown: Boolean) {
         if (!canNotify(context)) return
         val builder = NotificationCompat.Builder(context, ONGOING_CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_menu_today)
+            .setSmallIcon(R.drawable.ic_stat_bicep)
             .setContentTitle(title)
             .setContentText(text)
             .setOngoing(true)
@@ -89,7 +89,7 @@ object WorkoutAlerts {
             .build()
 
         OngoingActivity.Builder(context, ONGOING_ID, builder)
-            .setStaticIcon(android.R.drawable.ic_menu_today)
+            .setStaticIcon(R.drawable.ic_stat_bicep)
             .setTouchIntent(openAppIntent(context))
             .setStatus(status)
             .build()
@@ -129,7 +129,7 @@ object WorkoutAlerts {
     fun showRestFinished(context: Context) {
         if (!canNotify(context)) return
         val notification = NotificationCompat.Builder(context, REST_CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_menu_today)
+            .setSmallIcon(R.drawable.ic_stat_bicep)
             .setContentTitle("Rest is over 💪")
             .setContentText("Time for your next set")
             .setCategory(NotificationCompat.CATEGORY_ALARM)

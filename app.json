@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "GymTrackerSimple",
+    "name": "Gym Tracker",
     "slug": "GymTrackerSimple",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -10,7 +10,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "backgroundColor": "#2563eb"
     },
     "ios": {
       "supportsTablet": true
@@ -19,7 +19,7 @@
       "package": "com.alessandroladu.gymtracker",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#2563eb"
       },
       "edgeToEdgeEnabled": true
     },
@@ -28,7 +28,13 @@
     },
     "plugins": [
       "expo-status-bar",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#2563eb"
+        }
+      ],
       "./plugins/withReleaseSigning",
       "./plugins/withNoForceDark"
     ]

@@ -46,7 +46,7 @@ class LiveTimerModule : Module() {
     }
 
     val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-      .setSmallIcon(context.applicationInfo.icon)
+      .setSmallIcon(smallIcon(context))
       .setContentTitle(title)
       .setContentText(body)
       .setOngoing(true)
@@ -77,6 +77,12 @@ class LiveTimerModule : Module() {
     } catch (e: SecurityException) {
       // Notification permission was revoked
     }
+  }
+
+  // White bicep silhouette made by the expo-notifications plugin; the app icon as a fallback
+  private fun smallIcon(context: Context): Int {
+    val id = context.resources.getIdentifier("notification_icon", "drawable", context.packageName)
+    return if (id != 0) id else context.applicationInfo.icon
   }
 
   private fun ensureChannel(context: Context) {
