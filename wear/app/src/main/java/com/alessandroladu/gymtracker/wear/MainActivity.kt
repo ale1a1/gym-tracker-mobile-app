@@ -332,22 +332,14 @@ private fun ActiveWorkoutScreen(
                 item {
                     ListHeader {
                         Text(
-                            "${exerciseIndex + 1}. ${exercise.row.name}",
+                            exercise.row.name,
                             textAlign = TextAlign.Center,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                         )
                     }
                 }
-                // Target / last reps
-                item {
-                    Text(
-                        "${exercise.row.sets} × ${exercise.row.reps}" +
-                            (exercise.lastReps?.let { "  ·  Last [${it.joinToString("-")}]" } ?: ""),
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                    )
-                }
+
                 if (exercise.row.setRest != null || exercise.row.exerciseRest != null) {
                     item {
                         Text(
@@ -375,12 +367,13 @@ private fun ActiveWorkoutScreen(
                     }
                 }
 
-                // Weight (tap to type the exact value) with the history button on its right
+                // One row: sets x reps, weight (tap to type the exact value), history
                 item {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        Text("${exercise.row.sets} × ${exercise.row.reps}", fontSize = 15.sp, fontWeight = FontWeight.Bold)
                         Text(
                             "${formatWeight(exercise.weight)}  ✎",
                             fontSize = 14.sp,
@@ -402,6 +395,9 @@ private fun ActiveWorkoutScreen(
                             Icon(AppIcons.History, contentDescription = "History", tint = Color(0xFF0B1F3A), modifier = Modifier.size(18.dp))
                         }
                     }
+                }
+                exercise.lastReps?.let { last ->
+                    item { Text("Last ${last.joinToString("-")}", fontSize = 12.sp, color = Color.Gray) }
                 }
 
                 if (exercise.increaseSuggested) {
@@ -440,9 +436,6 @@ private fun ActiveWorkoutScreen(
                     }
                 }
 
-                if (exercise.hitTarget && exercise.weight != null) {
-                    item { Text("Target hit! Increase the weight next time.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
-                }
             }
         }
 
