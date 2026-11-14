@@ -262,47 +262,44 @@ private fun WorkoutListScreen(
                 val running = state.live?.workout?.id == workout.id
                 // Name with ▶ start/continue and history right on the list (no extra page)
                 item {
+                    // tapping the card opens the workout (starts it, or continues the running one)
+                    val open = {
+                        when {
+                            running -> onOpenWorkout()
+                            state.live != null -> switchTo = workout
+                            else -> viewModel.startWorkout(workout) { onOpenWorkout() }
+                        }
+                    }
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clip(RoundedCornerShape(26.dp))
                             .background(if (running) Green else Color(0xFF26262A))
+                            .clickable(enabled = !state.loading) { open() }
                             .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                workout.title,
-                                modifier = Modifier.clickable { fullName = workout.title },
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 15.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                color = Color.White,
-                            )
+                            NameText(workout.title, fontSize = 15.sp, color = Color.White) { fullName = workout.title }
                             Text(
                                 if (running) "In progress" else "${workout.exercises.size} exercises",
                                 fontSize = 12.sp,
                                 color = if (running) Color.White else Color.Gray,
                             )
                         }
-                        // ▶ start (or continue the running one)
-                        Box(
-                            modifier = Modifier
-                                .size(38.dp)
-                                .clip(CircleShape)
-                                .background(if (running) Color.White else Green)
-                                .clickable(enabled = !state.loading) {
-                                    when {
-                                        running -> onOpenWorkout()
-                                        state.live != null -> switchTo = workout
-                                        else -> viewModel.startWorkout(workout) { onOpenWorkout() }
-                                    }
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(Icons.Filled.PlayArrow, contentDescription = "Start", tint = if (running) Green else Color.White, modifier = Modifier.size(26.dp))
+                        // ▶ start; the running workout has none (its green card already opens it)
+                        if (!running) {
+                            Box(
+                                modifier = Modifier
+                                    .size(38.dp)
+                                    .clip(CircleShape)
+                                    .background(Green)
+                                    .clickable(enabled = !state.loading) { open() },
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Icon(Icons.Filled.PlayArrow, contentDescription = "Start", tint = Color.White, modifier = Modifier.size(26.dp))
+                            }
                         }
                         Box(
                             modifier = Modifier.size(38.dp).clip(CircleShape).background(SoftBlue).clickable { onHistory(workout.id) },
@@ -416,15 +413,7 @@ private fun ActiveWorkoutScreen(
                         modifier = Modifier.fillMaxWidth().padding(top = 22.dp, bottom = 2.dp, start = 12.dp, end = 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        Text(
-                            exercise.row.name,
-                            modifier = Modifier.clickable { fullTitle = exercise.row.name },
-                            textAlign = TextAlign.Center,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        NameText(exercise.row.name, fontSize = 16.sp, textAlign = TextAlign.Center) { fullTitle = exercise.row.name }
                         if (exercise.row.settings.isNotBlank()) {
                             Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
                         }
@@ -715,31 +704,6 @@ private fun DialogButton(label: String, color: Color, onClick: () -> Unit) {
     )
 }
 
-@Composable
-private fun EndWorkoutDialog(title: String, onFinish: () -> Unit, onDiscard: () -> Unit, onCancel: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xF0000000)),
-        contentAlignment = Alignment.Center,
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 24.dp),
-        ) {
-            Text("End $title?", fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
-            Button(
-                onClick = onFinish,
-                colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
-            ) { Text("✓ Finish & save", fontWeight = FontWeight.Bold) }
-            CompactButton(
-                onClick = onDiscard,
-                colors = ButtonDefaults.buttonColors(containerColor = Red),
-            ) { Text("✕ Discard", color = Color.White, fontWeight = FontWeight.Bold) }
-            CompactButton(onClick = onCancel) { Text("Keep going") }
-        }
-    }
-}
-
 // Full-screen "Rest is over" that blinks for about a second, then goes away by itself
 @Composable
 private fun RestOverFlash(key: Long, onFinished: () -> Unit) {
@@ -1021,14 +985,7 @@ private fun WorkoutHistoryScreen(workout: WorkoutRow) {
                             val reps = sets.sortedBy { it.setIndex }.joinToString("-") { it.reps.toString() }
                             item {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
-                                    Text(
-                                        first.exerciseName,
-                                        modifier = Modifier.clickable { fullName = first.exerciseName },
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
+                                    NameText(first.exerciseName, fontSize = 13.sp) { fullName = first.exerciseName }
                                     Text(
                                         (first.weight?.let { formatWeight(it) + "  " } ?: "") + "[$reps]",
                                         fontSize = 12.sp,
@@ -1227,6 +1184,29 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
 }
 
 // ---------- small pieces ----------
+
+// One-line bold name, cut with "…" when too long. Only a cut name is tappable (to show it in full).
+@Composable
+private fun NameText(
+    name: String,
+    fontSize: androidx.compose.ui.unit.TextUnit,
+    color: Color = Color.Unspecified,
+    textAlign: TextAlign? = null,
+    onShowFull: () -> Unit,
+) {
+    var cut by remember(name) { mutableStateOf(false) }
+    Text(
+        name,
+        modifier = if (cut) Modifier.clickable(onClick = onShowFull) else Modifier,
+        fontSize = fontSize,
+        fontWeight = FontWeight.Bold,
+        color = color,
+        textAlign = textAlign,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        onTextLayout = { cut = it.hasVisualOverflow },
+    )
+}
 
 // Full name of a title cut with "…"; tap anywhere to close
 @Composable
