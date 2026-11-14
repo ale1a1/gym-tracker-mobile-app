@@ -99,12 +99,28 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun signIn(idToken: String) = viewModelScope.launch {
         _state.update { it.copy(loading = true, error = null) }
         runCatching { Repository.signInWithGoogle(idToken) }
-            .onFailure { e -> _state.update { it.copy(error = "Sign-in failed: ${e.message}") } }
+            .onFailure { e -> fail("Sign-in failed. Try again.", e) }
         _state.update { it.copy(loading = false) }
     }
 
-    fun showError(message: String) = _state.update { it.copy(error = message) }
-    fun clearError() = _state.update { it.copy(error = null) }
+    fun showError(message: String) = fail(message, null)
+    fun clearError() {
+        errorJob?.cancel()
+        _state.update { it.copy(error = null) }
+    }
+
+    // Short message on screen (never the raw request/response), full details in the log;
+    // it goes away by itself after a few seconds (or when tapped)
+    private var errorJob: Job? = null
+    private fun fail(message: String, e: Throwable?) {
+        if (e != null) Log.e("GymTracker", message, e)
+        _state.update { it.copy(error = message) }
+        errorJob?.cancel()
+        errorJob = viewModelScope.launch {
+            delay(5000)
+            _state.update { if (it.error == message) it.copy(error = null) else it }
+        }
+    }
 
     fun loadWorkouts() = viewModelScope.launch {
         _state.update { it.copy(loading = true, error = null) }
@@ -112,7 +128,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             .onSuccess { workouts -> _state.update { it.copy(workouts = workouts) } }
             .onFailure { e ->
                 Log.e("GymTracker", "loadWorkouts failed", e)
-                _state.update { it.copy(error = "Couldn't load workouts: ${e.message}") }
+                fail("Couldn't load workouts. Check the connection and tap refresh.", e)
             }
         _state.update { it.copy(loading = false) }
     }
@@ -122,7 +138,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun startWorkout(workout: WorkoutRow, onReady: () -> Unit) = viewModelScope.launch {
         _state.value.live?.let { live ->
             if (live.workout.id == workout.id) onReady()
-            else _state.update { it.copy(error = "Finish or discard \"${live.workout.title}\" first") }
+            else fail("Finish or close \"${live.workout.title}\" first", null)
             return@launch
         }
         _state.update { it.copy(loading = true, error = null) }
@@ -158,7 +174,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             save(live)
             onReady()
         }.onFailure { e ->
-            _state.update { it.copy(error = "Couldn't start: ${e.message}") }
+            fail("Couldn't start the workout. Try again.", e)
         }
         _state.update { it.copy(loading = false) }
     }
@@ -219,7 +235,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         save(live)
         viewModelScope.launch {
             runCatching { Repository.updateExerciseWeight(exerciseId, weight) }
-                .onFailure { e -> _state.update { it.copy(error = "Weight not saved: ${e.message}") } }
+                .onFailure { e -> fail("Weight not saved to the cloud yet.", e) }
         }
     }
 
@@ -263,7 +279,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     // Stays "in progress" in the cloud; opening that workout again continues it
                     EndMode.KEEP_FOR_LATER -> Repository.saveSession(session(live, "in_progress", null, now), sets(live))
                 }
-            }.onFailure { e -> _state.update { it.copy(error = "Not saved: ${e.message}") } }
+            }.onFailure { e -> fail("Couldn't save. Check the connection.", e) }
         }
         _state.update { it.copy(live = null) }
     }
@@ -301,7 +317,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             saveLock.withLock {
                 val latest = _state.value.live?.takeIf { it.sessionId == live.sessionId } ?: return@withLock
                 runCatching { Repository.saveSession(session(latest, "in_progress", null, System.currentTimeMillis()), sets(latest)) }
-                    .onFailure { e -> _state.update { it.copy(error = "Not saved (offline?): ${e.message}") } }
+                    .onFailure { e -> fail("Couldn't save. It will retry with your next change.", e) }
             }
         }
     }

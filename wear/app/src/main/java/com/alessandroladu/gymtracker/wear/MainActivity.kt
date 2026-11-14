@@ -233,7 +233,7 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPre
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(state = listState, contentPadding = padding.withBottomRoom(), autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text("Workouts") } }
-            state.error?.let { error -> item { ErrorText(error) } }
+            state.error?.let { error -> item { ErrorText(error) { viewModel.clearError() } } }
             if (state.workouts.isEmpty() && !state.loading) {
                 item { Text("No workouts yet. Create them on the phone.", textAlign = TextAlign.Center) }
             }
@@ -327,7 +327,7 @@ private fun ActiveWorkoutScreen(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            state.error?.let { error -> item { ErrorText(error) } }
+            state.error?.let { error -> item { ErrorText(error) { viewModel.clearError() } } }
 
             // All exercises, one after the other
             live.exercises.forEachIndexed { exerciseIndex, exercise ->
@@ -798,7 +798,11 @@ private fun WeightKeypad(initial: Double?, onDone: (Double?) -> Unit) {
         text = when (key) {
             "⌫" -> text.dropLast(1)
             "." -> if (text.contains(".")) text else (if (text.isEmpty()) "0." else "$text.")
-            else -> if (text.substringAfter(".", "").length >= 2 && text.contains(".")) text else (text + key).take(6)
+            else -> when {
+                text.contains(".") && text.substringAfter(".").length >= 2 -> text
+                !text.contains(".") && text.length >= 3 -> text // max 999.99 kg
+                else -> text + key
+            }
         }
     }
 
@@ -949,8 +953,16 @@ private fun Message(text: String) {
 }
 
 @Composable
-private fun ErrorText(text: String) {
-    Text(text, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center)
+private fun ErrorText(text: String, onDismiss: (() -> Unit)? = null) {
+    Text(
+        text,
+        color = MaterialTheme.colorScheme.error,
+        style = MaterialTheme.typography.bodySmall,
+        textAlign = TextAlign.Center,
+        maxLines = 3,
+        overflow = TextOverflow.Ellipsis,
+        modifier = if (onDismiss != null) Modifier.clickable(onClick = onDismiss) else Modifier,
+    )
 }
 
 private fun formatDuration(totalSeconds: Long): String {
