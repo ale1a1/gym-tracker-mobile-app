@@ -672,7 +672,7 @@ private fun EndWorkoutDialog(title: String, onFinish: () -> Unit, onDiscard: () 
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(top = 26.dp, start = 24.dp, end = 24.dp),
+            modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp),
         ) {
             Text("End $title?", fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
             Column(
