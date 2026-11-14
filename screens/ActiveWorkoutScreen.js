@@ -8,6 +8,7 @@ import WeightControl from "../components/WeightControl"
 import KeyboardSafeView from "../components/KeyboardSafeView"
 import VideoButton from "../components/VideoButton"
 import AlternativesBox from "../components/AlternativesBox"
+import HistoryModal from "../components/HistoryModal"
 import { formatWeight, hitTarget } from "../lib/workoutForm"
 import { useThemedStyles, useTheme } from "../lib/theme"
 
@@ -36,6 +37,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
 
   const [showCompletionModal, setShowCompletionModal] = useState(false)
   const [showCancelModal, setShowCancelModal] = useState(false)
+  const [historyExercise, setHistoryExercise] = useState(null)
   const [hasShownModal, setHasShownModal] = useState(false)
   const isFinishing = useRef(false)
   const hasAutoStarted = useRef(false)
@@ -375,6 +377,12 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                   {allSetsCompleted && <Ionicons name="checkmark-circle" size={40} color="#10b981" />}
                 </View>
 
+                <View style={styles.exerciseMeta}>
+                  <TouchableOpacity style={styles.historyChip} onPress={() => setHistoryExercise(exercise)}>
+                    <Ionicons name="time-outline" size={14} color={theme.primary} />
+                    <Text style={styles.historyChipText}>History</Text>
+                  </TouchableOpacity>
+                </View>
                 {(!!exercise.settings || (exercise.videos && exercise.videos.length > 0)) && (
                   <View style={styles.exerciseMeta}>
                     {!!exercise.settings && (
@@ -437,6 +445,15 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
           })}
       </ScrollView>
       </KeyboardSafeView>
+
+      {historyExercise && (
+        <HistoryModal
+          visible
+          onClose={() => setHistoryExercise(null)}
+          workout={currentWorkout}
+          exercise={historyExercise}
+        />
+      )}
 
       {/* Cancel Confirmation Modal */}
       <Modal
@@ -540,6 +557,22 @@ const makeStyles = (c) => StyleSheet.create({
     alignItems: "center",
     gap: 8,
     marginBottom: 8,
+  },
+  historyChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: c.infoBg,
+    borderColor: c.infoBorder,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  historyChipText: {
+    fontSize: 13,
+    color: c.primary,
+    fontWeight: "600",
   },
   settingsChip: {
     flexDirection: "row",

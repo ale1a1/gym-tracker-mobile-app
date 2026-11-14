@@ -6,6 +6,7 @@ import WorkoutForm from '../components/WorkoutForm'
 import KeyboardSafeView from '../components/KeyboardSafeView'
 import VideoButton from '../components/VideoButton'
 import AlternativesBox from '../components/AlternativesBox'
+import HistoryModal from '../components/HistoryModal'
 import { workoutToForm, formToWorkout, formatWeight } from '../lib/workoutForm'
 import { useThemedStyles, useTheme } from "../lib/theme"
 
@@ -20,12 +21,13 @@ export default function ViewWorkoutScreen({ route, navigation }) {
   const [isEditing, setIsEditing] = useState(route.params?.isEditing || false)
   const [form, setForm] = useState(() => workoutToForm(workout))
   const [focusExerciseId, setFocusExerciseId] = useState(null)
+  const [showHistory, setShowHistory] = useState(false)
   const scrollRef = useRef(null)
 
   // Reps done per exercise in the last finished session of this workout
-  const lastSession = (workoutHistory || [])
-    .filter((h) => h && h.originalId === workout.id)
-    .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0]
+  const sessionsOfWorkout = (workoutHistory || []).filter((h) => h && h.originalId === workout.id)
+  const sessionCount = sessionsOfWorkout.length
+  const lastSession = [...sessionsOfWorkout].sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0]
   const lastRepsFor = (exerciseId) =>
     lastSession?.exercises?.find((ex) => ex && ex.id === exerciseId)?.completed || null
 
@@ -229,6 +231,18 @@ export default function ViewWorkoutScreen({ route, navigation }) {
         </View>
       </View>
 
+      {/* Only the latest reps are shown on the exercises; everything older lives behind this */}
+      <TouchableOpacity
+        style={styles.historyButton}
+        onPress={() => setShowHistory(true)}
+      >
+        <Ionicons name="time-outline" size={18} color={theme.primary} />
+        <Text style={styles.historyButtonText}>History ({sessionCount})</Text>
+        <Ionicons name="chevron-forward" size={18} color={theme.primary} />
+      </TouchableOpacity>
+
+      <HistoryModal visible={showHistory} onClose={() => setShowHistory(false)} workout={workout} />
+
       <View style={styles.exercisesSection}>
         <Text style={styles.sectionTitle}>Exercises ({workout.exercises.length})</Text>
 
@@ -329,6 +343,24 @@ const makeStyles = (c) => StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: c.text,
+  },
+  historyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: c.infoBg,
+    borderColor: c.infoBorder,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  historyButtonText: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '600',
+    color: c.primary,
   },
   exercisesSection: {
     marginBottom: 40,

@@ -49,6 +49,9 @@ import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.delay
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
@@ -94,8 +97,13 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
                     state = state,
                     viewModel = viewModel,
                     onEditWeight = { navController.navigate("weight") },
+                    onHistory = { navController.navigate("history") },
                     onEnded = { navController.popBackStack("workouts", inclusive = false) },
                 )
+            }
+            composable("history") {
+                val live = state.live
+                if (live == null) Message("No workout") else HistoryScreen(live.workout.id, live.exercises[live.current].row)
             }
             composable("weight") {
                 val live = state.live
@@ -202,6 +210,7 @@ private fun ActiveWorkoutScreen(
     state: UiState,
     viewModel: WorkoutViewModel,
     onEditWeight: () -> Unit,
+    onHistory: () -> Unit,
     onEnded: () -> Unit,
 ) {
     val live = state.live
@@ -270,6 +279,7 @@ private fun ActiveWorkoutScreen(
             exercise.lastReps?.let { last ->
                 item { Text("Last: [${last.joinToString("-")}]", style = MaterialTheme.typography.bodySmall) }
             }
+            item { CompactButton(onClick = onHistory) { Text("History") } }
 
             exercise.row.alternatives.forEach { alt ->
                 item {
@@ -386,6 +396,84 @@ private fun WeightKeypad(initial: Double?, onDone: (Double?) -> Unit) {
                     onClick = { onDone(text.trimEnd('.').takeIf { it.isNotEmpty() }?.toDoubleOrNull()) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Save") }
+            }
+        }
+    }
+}
+
+// History of one exercise: last 10 sessions; with more, filter by month or week
+@Composable
+private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
+    val listState = rememberScalingLazyListState()
+    var entries by remember { mutableStateOf<List<HistoryEntry>?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var mode by remember { mutableStateOf<String?>(null) } // null = last 10, "month", "week"
+    var periodStart by remember { mutableStateOf(LocalDate.now()) }
+
+    LaunchedEffect(workoutId, exercise.id) {
+        runCatching { Repository.completedSessions(workoutId) }
+            .onSuccess { sessions -> entries = historyEntries(sessions, exercise.id) }
+            .onFailure { error = "Couldn't load history: ${it.message}" }
+    }
+
+    val all = entries.orEmpty()
+    val shown = when (mode) {
+        null -> all.take(10)
+        else -> all.filter { inPeriod(mode!!, periodStart, it.date) }
+    }
+
+    ScreenScaffold(scrollState = listState) { padding ->
+        ScalingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxWidth()) {
+            item { ListHeader { Text("History") } }
+            item { Text(exercise.name, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+
+            if (all.size > 10) {
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("month" to "Month", "week" to "Week").forEach { (m, label) ->
+                            CompactButton(
+                                onClick = {
+                                    if (mode == m) {
+                                        mode = null
+                                    } else {
+                                        mode = m
+                                        val latest = all.first().date
+                                        periodStart = if (m == "week") latest.with(DayOfWeek.MONDAY) else latest.withDayOfMonth(1)
+                                    }
+                                },
+                                colors = if (mode == m) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors(),
+                            ) { Text(label) }
+                        }
+                    }
+                }
+            }
+            if (mode != null) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        CompactButton(onClick = { periodStart = shiftPeriod(mode!!, periodStart, -1) }) { Text("◀") }
+                        Text(periodLabel(mode!!, periodStart), style = MaterialTheme.typography.bodySmall)
+                        CompactButton(onClick = { periodStart = shiftPeriod(mode!!, periodStart, 1) }) { Text("▶") }
+                    }
+                }
+            }
+
+            when {
+                error != null -> item { ErrorText(error!!) }
+                entries == null -> item { Text("Loading…") }
+                all.isEmpty() -> item { Text("No finished sessions yet", textAlign = TextAlign.Center) }
+                shown.isEmpty() -> item { Text("Nothing in this ${mode}", textAlign = TextAlign.Center) }
+            }
+            shown.forEach { entry ->
+                item {
+                    Card(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                        Text(entry.date.format(DateTimeFormatter.ofPattern("EEE d MMM yyyy")), fontWeight = FontWeight.Bold)
+                        Text(
+                            "${entry.reps.size} sets [${entry.reps.joinToString("-")}]" +
+                                (entry.weight?.let { " · ${formatWeight(it)}" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
             }
         }
     }

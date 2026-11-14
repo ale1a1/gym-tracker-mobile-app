@@ -121,7 +121,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             LiveWorkout(
                 workout = workout,
                 sessionId = existing?.id ?: UUID.randomUUID().toString(),
-                startedAtMillis = existing?.startedAt?.let { Instant.parse(it).toEpochMilli() } ?: System.currentTimeMillis(),
+                startedAtMillis = existing?.startedAt?.let { parseTimestamp(it).toEpochMilli() } ?: System.currentTimeMillis(),
                 exercises = exercises,
                 current = exercises.indexOfFirst { !it.allDone }.coerceAtLeast(0),
             )
