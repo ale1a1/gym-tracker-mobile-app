@@ -811,10 +811,19 @@ private fun WeightKeypad(initial: Double?, onDone: (Double?) -> Unit) {
                 }
             }
             item {
-                Button(
+                // Compact, centred green Save
+                CompactButton(
                     onClick = { onDone(text.trimEnd('.').takeIf { it.isNotEmpty() }?.toDoubleOrNull()) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Save") }
+                    modifier = Modifier.padding(top = 6.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
+                ) {
+                    Text(
+                        "Save",
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
             }
         }
     }
