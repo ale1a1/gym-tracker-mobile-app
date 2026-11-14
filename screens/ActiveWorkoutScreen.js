@@ -229,10 +229,10 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
         const allSetsCompleted = updatedExercise.setsCompleted.every((completed) => completed)
 
         if (allSetsCompleted) {
-          const exerciseRestDuration = currentWorkout.exerciseRest || 120
+          const exerciseRestDuration = exercise.exerciseRest || currentWorkout.exerciseRest || 120
           startRest("exercise", exerciseRestDuration)
         } else {
-          const setRestDuration = currentWorkout.setRest || 60
+          const setRestDuration = exercise.setRest || currentWorkout.setRest || 60
           startRest("set", setRestDuration)
         }
       }
@@ -400,6 +400,12 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                     Target: {exercise.sets} sets × {exercise.reps} reps
                     {hasWeight ? ` @ ${formatWeight(exercise.weight)}` : ""}
                   </Text>
+                  {(exercise.setRest || exercise.exerciseRest) && (
+                    <Text style={styles.restOverrideText}>
+                      Rest for this exercise: {exercise.setRest || currentWorkout.setRest || 60}s between sets
+                      {exercise.exerciseRest ? `, ${exercise.exerciseRest}s after` : ""}
+                    </Text>
+                  )}
 
                   <View style={styles.setsGrid}>{exercise.completed && renderSetsGrid(exercise)}</View>
 
@@ -712,6 +718,13 @@ const makeStyles = (c) => StyleSheet.create({
   },
   setsContainer: {
     marginTop: 8,
+  },
+  restOverrideText: {
+    fontSize: 13,
+    color: c.primary,
+    fontWeight: "600",
+    marginTop: -6,
+    marginBottom: 12,
   },
   setsLabel: {
     fontSize: 14,

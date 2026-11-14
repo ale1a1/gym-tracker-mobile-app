@@ -252,6 +252,15 @@ private fun ActiveWorkoutScreen(
                 )
             }
             item { Text("Target ${exercise.row.sets} × ${exercise.row.reps}", style = MaterialTheme.typography.bodySmall) }
+            if (exercise.row.setRest != null || exercise.row.exerciseRest != null) {
+                item {
+                    Text(
+                        "Rest ${exercise.row.setRest ?: live.workout.setRest}s" +
+                            (exercise.row.exerciseRest?.let { ", ${it}s after" } ?: ""),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
             if (exercise.row.settings.isNotBlank()) {
                 item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
             }

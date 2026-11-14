@@ -15,6 +15,9 @@ data class ExerciseRow(
     val sets: Int,
     val reps: Int,
     val weight: Double? = null,
+    // Own rest for this exercise (seconds); null = the workout's general rule
+    @SerialName("set_rest") val setRest: Int? = null,
+    @SerialName("exercise_rest") val exerciseRest: Int? = null,
     val settings: String = "",
     val notes: String = "",
     val alternatives: List<AlternativeRow> = emptyList(),

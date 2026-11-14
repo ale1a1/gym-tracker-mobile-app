@@ -248,6 +248,15 @@ export default function ViewWorkoutScreen({ route, navigation }) {
               {lastReps ? <Text style={styles.lastReps}>{`  [${lastReps.join('-')}]`}</Text> : null}
             </Text>
 
+            {(exercise.setRest || exercise.exerciseRest) && (
+              <View style={styles.detailRow}>
+                <Ionicons name="timer-outline" size={14} color={theme.textMuted} />
+                <Text style={styles.detailText}>
+                  Rest {exercise.setRest || workout.setRest}s between sets
+                  {exercise.exerciseRest ? `, ${exercise.exerciseRest}s after` : ''}
+                </Text>
+              </View>
+            )}
             {!!exercise.settings && (
               <View style={styles.detailRow}>
                 <Ionicons name="settings-outline" size={14} color={theme.textMuted} />

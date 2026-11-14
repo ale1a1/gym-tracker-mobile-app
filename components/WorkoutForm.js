@@ -199,6 +199,32 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
               </View>
             </View>
 
+            {/* Own rest for this exercise; blank = the workout's general rule */}
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.label}>Rest between sets (s)</Text>
+                <TextInput
+                  placeholderTextColor={theme.textFaint}
+                  style={styles.input}
+                  value={exercise.setRest}
+                  onChangeText={(value) => updateExercise(exercise.id, "setRest", value)}
+                  placeholder={`default ${form.setRest || 60}`}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={[styles.inputGroup, styles.halfWidth]}>
+                <Text style={styles.label}>Rest after exercise (s)</Text>
+                <TextInput
+                  placeholderTextColor={theme.textFaint}
+                  style={styles.input}
+                  value={exercise.exerciseRest}
+                  onChangeText={(value) => updateExercise(exercise.id, "exerciseRest", value)}
+                  placeholder={`default ${form.exerciseRest || 120}`}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Machine settings</Text>
               <TextInput

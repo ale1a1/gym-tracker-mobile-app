@@ -150,19 +150,22 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     fun toggleSetDone(setIndex: Int) {
         var startRest = false
         var exerciseFinished = false
+        var exerciseRow: ExerciseRow? = null
         val live = updateLive { live ->
             live.withCurrent { ex ->
                 val nowDone = !ex.done[setIndex]
                 val updated = ex.copy(done = ex.done.mapIndexed { i, d -> if (i == setIndex) nowDone else d })
                 startRest = nowDone
                 exerciseFinished = updated.allDone
+                exerciseRow = ex.row
                 updated
             }
         } ?: return
         save(live)
         if (startRest) {
-            if (exerciseFinished) startRest(live.workout.exerciseRest, "Exercise rest")
-            else startRest(live.workout.setRest, "Set rest")
+            // The exercise's own rest wins over the workout's general rule
+            if (exerciseFinished) startRest(exerciseRow?.exerciseRest ?: live.workout.exerciseRest, "Exercise rest")
+            else startRest(exerciseRow?.setRest ?: live.workout.setRest, "Set rest")
         }
     }
 
