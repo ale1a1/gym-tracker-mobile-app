@@ -243,6 +243,7 @@ private fun WorkoutListScreen(
     val listState = rememberScalingLazyListState()
     // ▶ pressed on another workout while one is running: ask what to do with the running one
     var switchTo by remember { mutableStateOf<WorkoutRow?>(null) }
+    var fullName by remember { mutableStateOf<String?>(null) }
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
             state = listState,
@@ -270,7 +271,15 @@ private fun WorkoutListScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(workout.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White)
+                            Text(
+                                workout.title,
+                                modifier = Modifier.clickable { fullName = workout.title },
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 15.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = Color.White,
+                            )
                             Text(
                                 if (running) "In progress" else "${workout.exercises.size} exercises",
                                 fontSize = 12.sp,
@@ -336,6 +345,8 @@ private fun WorkoutListScreen(
                 }
             }
         }
+
+        fullName?.let { name -> FullNamePopup(name) { fullName = null } }
 
         val current = state.live
         val next = switchTo
@@ -543,25 +554,7 @@ private fun ActiveWorkoutScreen(
             )
         }
 
-        fullTitle?.let { name ->
-            // Tap anywhere to close
-            Box(
-                modifier = Modifier.fillMaxSize().background(Color(0xCC000000)).clickable { fullTitle = null },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    name,
-                    modifier = Modifier
-                        .padding(horizontal = 30.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0xFF2C2C30))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                )
-            }
-        }
+        fullTitle?.let { name -> FullNamePopup(name) { fullTitle = null } }
 
         if (confirmEnd) {
             EndWorkoutDialog(
@@ -933,6 +926,7 @@ private fun WorkoutHistoryScreen(workout: WorkoutRow) {
     var sessions by remember { mutableStateOf<List<SessionRow>?>(null) }
     var error by remember { mutableStateOf(false) }
     var index by remember { mutableStateOf(0) } // 0 = most recent
+    var fullName by remember { mutableStateOf<String?>(null) }
     val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
 
     LaunchedEffect(workout.id) {
@@ -984,7 +978,14 @@ private fun WorkoutHistoryScreen(workout: WorkoutRow) {
                             val reps = sets.sortedBy { it.setIndex }.joinToString("-") { it.reps.toString() }
                             item {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
-                                    Text(first.exerciseName, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        first.exerciseName,
+                                        modifier = Modifier.clickable { fullName = first.exerciseName },
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
                                     Text(
                                         (first.weight?.let { formatWeight(it) + "  " } ?: "") + "[$reps]",
                                         fontSize = 12.sp,
@@ -996,6 +997,7 @@ private fun WorkoutHistoryScreen(workout: WorkoutRow) {
                 }
             }
         }
+        fullName?.let { name -> FullNamePopup(name) { fullName = null } }
     }
 }
 
@@ -1182,6 +1184,27 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
 }
 
 // ---------- small pieces ----------
+
+// Full name of a title cut with "…"; tap anywhere to close
+@Composable
+private fun FullNamePopup(name: String, onClose: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0xCC000000)).clickable(onClick = onClose),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            name,
+            modifier = Modifier
+                .padding(horizontal = 30.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF2C2C30))
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+        )
+    }
+}
 
 // Extra space at the top of a list (room for a sticky header drawn over it)
 @Composable
