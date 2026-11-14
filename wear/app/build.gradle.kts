@@ -82,10 +82,12 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.9.2")
     implementation("androidx.compose.material:material-icons-core:1.7.8")
 
-    // Google sign-in (Credential Manager)
-    implementation("androidx.credentials:credentials:1.5.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    // Google sign-in. The system Credential Manager screen crashes on the Pixel Watch
+    // (ActivityNotFoundException in com.android.credentialmanager), so the watch uses the
+    // classic Google Sign-In, which Wear OS supports natively.
+    implementation("com.google.android.gms:play-services-auth:21.3.0")
+    // activity-result APIs need a recent fragment (older one comes in transitively)
+    implementation("androidx.fragment:fragment-ktx:1.8.8")
 
     // Supabase
     implementation(platform("io.github.jan-tennert.supabase:bom:3.2.2"))

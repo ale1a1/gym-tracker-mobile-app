@@ -3,6 +3,7 @@ package com.alessandroladu.gymtracker.wear
 import android.app.Application
 import android.content.Context
 import android.os.Build
+import android.util.Log
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -89,7 +90,10 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _state.update { it.copy(loading = true, error = null) }
         runCatching { Repository.workouts() }
             .onSuccess { workouts -> _state.update { it.copy(workouts = workouts) } }
-            .onFailure { e -> _state.update { it.copy(error = "Couldn't load workouts: ${e.message}") } }
+            .onFailure { e ->
+                Log.e("GymTracker", "loadWorkouts failed", e)
+                _state.update { it.copy(error = "Couldn't load workouts: ${e.message}") }
+            }
         _state.update { it.copy(loading = false) }
     }
 

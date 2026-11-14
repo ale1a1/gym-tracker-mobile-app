@@ -26,9 +26,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.wear.compose.foundation.lazy.ScalingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberScalingLazyListState
@@ -46,8 +48,6 @@ import androidx.wear.compose.material3.TimeText
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -124,7 +124,27 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
 
 @Composable
 private fun SignInScreen(state: UiState, viewModel: WorkoutViewModel, activity: ComponentActivity) {
-    val scope = rememberCoroutineScope()
+    // Google's account picker on the watch; returns an ID token for Supabase
+    val googleClient = remember {
+        GoogleSignIn.getClient(
+            activity,
+            GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                .requestIdToken(BuildConfig.GOOGLE_WEB_CLIENT_ID)
+                .requestEmail()
+                .build(),
+        )
+    }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        try {
+            val account = GoogleSignIn.getSignedInAccountFromIntent(result.data).getResult(ApiException::class.java)
+            val idToken = account.idToken
+            if (idToken != null) viewModel.signIn(idToken) else viewModel.showError("Google didn't return an ID token")
+        } catch (e: ApiException) {
+            // 12501 = cancelled by the user
+            if (e.statusCode != 12501) viewModel.showError("Google sign-in failed (code ${e.statusCode})")
+        }
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -139,25 +159,9 @@ private fun SignInScreen(state: UiState, viewModel: WorkoutViewModel, activity: 
         )
         Button(
             onClick = {
-                scope.launch {
-                    try {
-                        val option = GetGoogleIdOption.Builder()
-                            .setServerClientId(BuildConfig.GOOGLE_WEB_CLIENT_ID)
-                            .setFilterByAuthorizedAccounts(false)
-                            .build()
-                        val request = GetCredentialRequest.Builder().addCredentialOption(option).build()
-                        val credential = CredentialManager.create(activity).getCredential(activity, request).credential
-                        if (credential is CustomCredential &&
-                            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
-                        ) {
-                            viewModel.signIn(GoogleIdTokenCredential.createFrom(credential.data).idToken)
-                        } else {
-                            viewModel.showError("Unexpected sign-in response")
-                        }
-                    } catch (e: Exception) {
-                        viewModel.showError("Google sign-in failed: ${e.message}")
-                    }
-                }
+                viewModel.clearError()
+                // Always show the account picker (no silently reused account)
+                googleClient.signOut().addOnCompleteListener { launcher.launch(googleClient.signInIntent) }
             },
             enabled = !state.loading,
         ) { Text(if (state.loading) "Signing in…" else "Sign in with Google") }
@@ -171,6 +175,7 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onOpe
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text("Workouts") } }
+            state.error?.let { error -> item { ErrorText(error) } }
             state.live?.let { live ->
                 item {
                     Button(
@@ -200,7 +205,6 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onOpe
             item {
                 CompactButton(onClick = { viewModel.loadWorkouts() }) { Text(if (state.loading) "Loading…" else "Refresh") }
             }
-            state.error?.let { error -> item { ErrorText(error) } }
         }
     }
 }

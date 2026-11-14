@@ -5,12 +5,21 @@ import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.Google
 import io.github.jan.supabase.auth.providers.builtin.IDToken
 import io.github.jan.supabase.createSupabaseClient
+import io.github.jan.supabase.serializer.KotlinXSerializer
+import kotlinx.serialization.json.Json
+import io.github.jan.supabase.logging.LogLevel
+import kotlin.time.Duration.Companion.seconds
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.postgrest.from
 import io.github.jan.supabase.postgrest.query.Columns
 import io.github.jan.supabase.postgrest.query.Order
 
 val supabase = createSupabaseClient(BuildConfig.SUPABASE_URL, BuildConfig.SUPABASE_ANON_KEY) {
+    // The tables have more columns than the watch uses (videos, user_id, timestamps…): ignore them
+    defaultSerializer = KotlinXSerializer(Json { ignoreUnknownKeys = true })
+    // A request that hangs (e.g. flaky gym Wi-Fi) fails after 15s instead of spinning forever
+    requestTimeout = 15.seconds
+    defaultLogLevel = LogLevel.DEBUG
     install(Auth)
     install(Postgrest)
 }
