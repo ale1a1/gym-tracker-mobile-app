@@ -88,30 +88,54 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
     when (state.signedIn) {
         null -> Message("Loading…")
         false -> SignInScreen(state, viewModel, activity)
+        // Each screen collects the state itself: the nav graph keeps the first lambdas it was
+        // given, so state passed in from here would go stale (taps saved but the screen not updating)
         true -> SwipeDismissableNavHost(navController = navController, startDestination = "workouts") {
             composable("workouts") {
-                WorkoutListScreen(state, viewModel) { navController.navigate("workout") }
+                val state by viewModel.state.collectAsStateWithLifecycle()
+                WorkoutListScreen(
+                    state = state,
+                    viewModel = viewModel,
+                    onPreview = { id -> navController.navigate("preview/$id") },
+                    onContinue = { navController.navigate("workout") },
+                )
+            }
+            composable("preview/{workoutId}") { entry ->
+                val state by viewModel.state.collectAsStateWithLifecycle()
+                val workout = state.workouts.find { it.id == entry.arguments?.getString("workoutId") }
+                if (workout == null) {
+                    Message("Workout not found")
+                } else {
+                    WorkoutPreviewScreen(state, workout) {
+                        viewModel.startWorkout(workout) { navController.navigate("workout") { popUpTo("workouts") } }
+                    }
+                }
             }
             composable("workout") {
+                val state by viewModel.state.collectAsStateWithLifecycle()
                 ActiveWorkoutScreen(
                     state = state,
                     viewModel = viewModel,
-                    onEditWeight = { navController.navigate("weight") },
-                    onHistory = { navController.navigate("history") },
+                    onEditWeight = { index -> navController.navigate("weight/$index") },
+                    onHistory = { index -> navController.navigate("history/$index") },
                     onEnded = { navController.popBackStack("workouts", inclusive = false) },
                 )
             }
-            composable("history") {
-                val live = state.live
-                if (live == null) Message("No workout") else HistoryScreen(live.workout.id, live.exercises[live.current].row)
+            composable("history/{index}") { entry ->
+                val state by viewModel.state.collectAsStateWithLifecycle()
+                val index = entry.arguments?.getString("index")?.toIntOrNull() ?: 0
+                val exercise = state.live?.exercises?.getOrNull(index)
+                if (exercise == null) Message("No workout") else HistoryScreen(state.live!!.workout.id, exercise.row)
             }
-            composable("weight") {
-                val live = state.live
-                if (live == null) {
+            composable("weight/{index}") { entry ->
+                val state by viewModel.state.collectAsStateWithLifecycle()
+                val index = entry.arguments?.getString("index")?.toIntOrNull() ?: 0
+                val exercise = state.live?.exercises?.getOrNull(index)
+                if (exercise == null) {
                     Message("No workout")
                 } else {
-                    WeightKeypad(initial = live.exercises[live.current].weight) { weight ->
-                        viewModel.setWeight(weight)
+                    WeightKeypad(initial = exercise.weight) { weight ->
+                        viewModel.setWeight(index, weight)
                         navController.popBackStack()
                     }
                 }
@@ -170,16 +194,16 @@ private fun SignInScreen(state: UiState, viewModel: WorkoutViewModel, activity: 
 }
 
 @Composable
-private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onOpen: () -> Unit) {
+private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPreview: (String) -> Unit, onContinue: () -> Unit) {
     val listState = rememberScalingLazyListState()
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text("Workouts") } }
             state.error?.let { error -> item { ErrorText(error) } }
             state.live?.let { live ->
                 item {
                     Button(
-                        onClick = onOpen,
+                        onClick = onContinue,
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
                     ) { Text("▶ Continue ${live.workout.title}") }
@@ -191,7 +215,7 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onOpe
             state.workouts.forEach { workout ->
                 item {
                     FilledTonalButton(
-                        onClick = { viewModel.startWorkout(workout, onOpen) },
+                        onClick = { onPreview(workout.id) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !state.loading,
                     ) {
@@ -213,8 +237,8 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onOpe
 private fun ActiveWorkoutScreen(
     state: UiState,
     viewModel: WorkoutViewModel,
-    onEditWeight: () -> Unit,
-    onHistory: () -> Unit,
+    onEditWeight: (Int) -> Unit,
+    onHistory: (Int) -> Unit,
     onEnded: () -> Unit,
 ) {
     val live = state.live
@@ -222,8 +246,8 @@ private fun ActiveWorkoutScreen(
         LaunchedEffect(Unit) { onEnded() }
         return
     }
-    val exercise = live.exercises[live.current]
-    val listState = rememberScalingLazyListState()
+    // Starts at the top (no centring gap above the timer)
+    val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
     var confirmEnd by remember { mutableStateOf(false) }
 
     // Ticks once a second for the stopwatch and the rest countdown
@@ -236,13 +260,25 @@ private fun ActiveWorkoutScreen(
     }
 
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(
+            state = listState,
+            contentPadding = padding,
+            autoCentering = null,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
             item {
                 Text(
-                    formatDuration((now - live.startedAtMillis) / 1000),
+                    formatDuration(live.elapsedMillis(now) / 1000) + if (live.paused) "  (paused)" else "",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                 )
+            }
+            item {
+                if (live.paused) {
+                    Button(onClick = { viewModel.resume() }) { Text("▶ Resume", fontWeight = FontWeight.Bold) }
+                } else {
+                    FilledTonalButton(onClick = { viewModel.pause() }) { Text("Pause") }
+                }
             }
 
             state.restEndsAtMillis?.let { endsAt ->
@@ -257,123 +293,171 @@ private fun ActiveWorkoutScreen(
                 }
             }
 
-            item {
-                Text(
-                    "${live.current + 1}/${live.exercises.size} · ${exercise.row.name}",
-                    style = MaterialTheme.typography.titleMedium,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            item { Text("Target ${exercise.row.sets} × ${exercise.row.reps}", style = MaterialTheme.typography.bodySmall) }
-            if (exercise.row.setRest != null || exercise.row.exerciseRest != null) {
-                item {
-                    Text(
-                        "Rest ${exercise.row.setRest ?: live.workout.setRest}s" +
-                            (exercise.row.exerciseRest?.let { ", ${it}s after" } ?: ""),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-            if (exercise.row.settings.isNotBlank()) {
-                item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
-            }
-            if (exercise.row.notes.isNotBlank()) {
-                item { Text(exercise.row.notes, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
-            }
-            exercise.lastReps?.let { last ->
-                item { Text("Last: [${last.joinToString("-")}]", style = MaterialTheme.typography.bodySmall) }
-            }
-            item { CompactButton(onClick = onHistory) { Text("History") } }
+            state.error?.let { error -> item { ErrorText(error) } }
 
-            exercise.row.alternatives.forEach { alt ->
+            // All exercises, one after the other
+            live.exercises.forEachIndexed { exerciseIndex, exercise ->
+                item {
+                    ListHeader {
+                        Text(
+                            "${exerciseIndex + 1}. ${exercise.row.name}" + if (exercise.allDone) "  ✓" else "",
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
                 item {
                     Text(
-                        "Alt: ${alt.name}" + (if (alt.sets != null && alt.reps != null) " ${alt.sets}×${alt.reps}" else "") +
-                            (if (alt.weight != null) " · ${formatWeight(alt.weight)}" else "") +
-                            (if (alt.settings.isNotBlank()) " (${alt.settings})" else ""),
+                        "Target ${exercise.row.sets} × ${exercise.row.reps}" +
+                            (exercise.lastReps?.let { "  ·  Last [${it.joinToString("-")}]" } ?: ""),
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                     )
                 }
-            }
-
-            if (exercise.newRecord) {
-                item {
-                    Text("🏆 New record!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-            }
-
-            if (exercise.increaseSuggested) {
-                item {
-                    Card(onClick = onEditWeight, modifier = Modifier.fillMaxWidth()) {
-                        Text("Last time you hit every set. Increase the weight today.", style = MaterialTheme.typography.bodySmall)
+                if (exercise.row.setRest != null || exercise.row.exerciseRest != null) {
+                    item {
+                        Text(
+                            "Rest ${exercise.row.setRest ?: live.workout.setRest}s" +
+                                (exercise.row.exerciseRest?.let { ", ${it}s after" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
                     }
                 }
-            }
-
-            // Weight: tap to type the exact value (no +/-)
-            item {
-                FilledTonalButton(onClick = onEditWeight, modifier = Modifier.fillMaxWidth()) {
-                    Text("Weight: ${formatWeight(exercise.weight)}  ✎")
+                if (exercise.row.settings.isNotBlank()) {
+                    item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
                 }
-            }
+                if (exercise.row.notes.isNotBlank()) {
+                    item { Text(exercise.row.notes, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+                }
+                exercise.row.alternatives.forEach { alt ->
+                    item {
+                        Text(
+                            "Alt: ${alt.name}" + (if (alt.sets != null && alt.reps != null) " ${alt.sets}×${alt.reps}" else "") +
+                                (if (alt.weight != null) " · ${formatWeight(alt.weight)}" else "") +
+                                (if (alt.settings.isNotBlank()) " (${alt.settings})" else ""),
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                }
 
-            exercise.reps.forEachIndexed { setIndex, reps ->
+                if (exercise.newRecord) {
+                    item { Text("🏆 New record!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+                }
+                if (exercise.increaseSuggested) {
+                    item {
+                        Card(onClick = { onEditWeight(exerciseIndex) }, modifier = Modifier.fillMaxWidth()) {
+                            Text("Last time you hit every set. Increase the weight today.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                // Weight: tap to type the exact value (no +/-)
                 item {
-                    SetRow(
-                        setNumber = setIndex + 1,
-                        reps = reps,
-                        done = exercise.done[setIndex],
-                        onMinus = { viewModel.changeReps(setIndex, -1) },
-                        onPlus = { viewModel.changeReps(setIndex, 1) },
-                        onToggleDone = { viewModel.toggleSetDone(setIndex) },
-                    )
+                    FilledTonalButton(onClick = { onEditWeight(exerciseIndex) }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Weight: ${formatWeight(exercise.weight)}  ✎")
+                    }
                 }
-            }
 
-            if (exercise.hitTarget && exercise.weight != null) {
-                item { Text("Target hit! Increase the weight next time.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
-            }
-
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CompactButton(onClick = { viewModel.goToExercise(live.current - 1) }, enabled = live.current > 0) { Text("◀ Prev") }
-                    CompactButton(onClick = { viewModel.goToExercise(live.current + 1) }, enabled = live.current < live.exercises.lastIndex) { Text("Next ▶") }
+                exercise.reps.forEachIndexed { setIndex, reps ->
+                    item {
+                        SetRow(
+                            setNumber = setIndex + 1,
+                            reps = reps,
+                            done = exercise.done[setIndex],
+                            onMinus = { viewModel.changeReps(exerciseIndex, setIndex, -1) },
+                            onPlus = { viewModel.changeReps(exerciseIndex, setIndex, 1) },
+                            onToggleDone = { viewModel.toggleSetDone(exerciseIndex, setIndex) },
+                        )
+                    }
                 }
+
+                if (exercise.hitTarget && exercise.weight != null) {
+                    item { Text("Target hit! Increase the weight next time.", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+                }
+                item { CompactButton(onClick = { onHistory(exerciseIndex) }) { Text("History") } }
             }
 
             item {
                 if (!confirmEnd) {
-                    Button(onClick = { confirmEnd = true }, modifier = Modifier.fillMaxWidth()) { Text("End workout") }
+                    Button(onClick = { confirmEnd = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) { Text("End workout") }
                 } else {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
                         Button(onClick = { viewModel.finishWorkout() }, modifier = Modifier.fillMaxWidth()) { Text("✓ Finish & save") }
-                        FilledTonalButton(onClick = { viewModel.discardWorkout() }, modifier = Modifier.fillMaxWidth()) { Text("✕ Discard") }
+                        FilledTonalButton(
+                            onClick = { viewModel.discardWorkout() },
+                            modifier = Modifier.fillMaxWidth(0.85f),
+                            colors = ButtonDefaults.filledTonalButtonColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                        ) { Text("✕ Discard") }
                         CompactButton(onClick = { confirmEnd = false }) { Text("Keep going") }
                     }
                 }
             }
-
-            state.error?.let { error -> item { ErrorText(error) } }
         }
     }
 }
 
+// A workout before starting it: exercises, sets × reps, weight, settings, and Start
+@Composable
+private fun WorkoutPreviewScreen(state: UiState, workout: WorkoutRow, onStart: () -> Unit) {
+    val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
+    val running = state.live?.workout?.id == workout.id
+    ScreenScaffold(scrollState = listState) { padding ->
+        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
+            item { ListHeader { Text(workout.title, textAlign = TextAlign.Center) } }
+            item {
+                Button(onClick = onStart, enabled = !state.loading, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        when {
+                            state.loading -> "Starting…"
+                            running -> "▶ Continue"
+                            else -> "▶ Start"
+                        },
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            state.error?.let { error -> item { ErrorText(error) } }
+            workout.exercises.forEachIndexed { index, ex ->
+                item {
+                    Card(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                        Text("${index + 1}. ${ex.name}", fontWeight = FontWeight.Bold)
+                        Text(
+                            "${ex.sets} × ${ex.reps}" + (ex.weight?.let { " · ${formatWeight(it)}" } ?: ""),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (ex.settings.isNotBlank()) Text("⚙ ${ex.settings}", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// One centred card per set, so nothing sits near the round edge:
+// "Set 1" / − reps + / Mark done
 @Composable
 private fun SetRow(setNumber: Int, reps: Int, done: Boolean, onMinus: () -> Unit, onPlus: () -> Unit, onToggleDone: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween,
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("S$setNumber", style = MaterialTheme.typography.bodySmall)
-        CompactButton(onClick = onMinus) { Text("−") }
-        Text("$reps", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        CompactButton(onClick = onPlus) { Text("+") }
-        CompactButton(
+        Text("Set $setNumber", style = MaterialTheme.typography.labelMedium)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            FilledTonalButton(onClick = onMinus) { Text("−", fontSize = 22.sp) }
+            Text("$reps", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            FilledTonalButton(onClick = onPlus) { Text("+", fontSize = 22.sp) }
+        }
+        Button(
             onClick = onToggleDone,
+            modifier = Modifier.fillMaxWidth(0.8f).padding(top = 4.dp),
             colors = if (done) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors(),
-        ) { Text(if (done) "✓" else "○") }
+        ) { Text(if (done) "✓ Done" else "Mark done", fontWeight = FontWeight.Bold) }
     }
 }
 
@@ -392,7 +476,7 @@ private fun WeightKeypad(initial: Double?, onDone: (Double?) -> Unit) {
     }
 
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { Text(if (text.isEmpty()) "— kg" else "$text kg", fontSize = 28.sp, fontWeight = FontWeight.Bold) }
             listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf(".", "0", "⌫")).forEach { row ->
                 item {
@@ -433,7 +517,7 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
     }
 
     ScreenScaffold(scrollState = listState) { padding ->
-        ScalingLazyColumn(state = listState, contentPadding = padding, modifier = Modifier.fillMaxWidth()) {
+        ScalingLazyColumn(state = listState, contentPadding = padding, autoCentering = null, modifier = Modifier.fillMaxWidth()) {
             item { ListHeader { Text("History") } }
             item { Text(exercise.name, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
 

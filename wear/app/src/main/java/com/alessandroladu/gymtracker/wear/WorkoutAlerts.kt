@@ -77,16 +77,21 @@ object WorkoutAlerts {
             .setSilent(true)
             .setCategory(NotificationCompat.CATEGORY_WORKOUT)
             .setContentIntent(openAppIntent(context))
-            .setWhen(baseTimeMillis)
-            .setUsesChronometer(true)
-            .setChronometerCountDown(countDown)
+        // baseTimeMillis <= 0: static (paused), no ticking time
+        if (baseTimeMillis > 0) {
+            builder.setWhen(baseTimeMillis).setUsesChronometer(true).setChronometerCountDown(countDown)
+        }
 
-        val timer = if (countDown) Status.TimerPart(baseTimeMillis) else Status.StopwatchPart(baseTimeMillis)
-        val status = Status.Builder()
-            .addTemplate("#label# #time#")
-            .addPart("label", Status.TextPart(text))
-            .addPart("time", timer)
-            .build()
+        val status = if (baseTimeMillis > 0) {
+            val timer = if (countDown) Status.TimerPart(baseTimeMillis) else Status.StopwatchPart(baseTimeMillis)
+            Status.Builder()
+                .addTemplate("#label# #time#")
+                .addPart("label", Status.TextPart(text))
+                .addPart("time", timer)
+                .build()
+        } else {
+            Status.Builder().addTemplate(text).build()
+        }
 
         OngoingActivity.Builder(context, ONGOING_ID, builder)
             .setStaticIcon(R.drawable.ic_stat_bicep)

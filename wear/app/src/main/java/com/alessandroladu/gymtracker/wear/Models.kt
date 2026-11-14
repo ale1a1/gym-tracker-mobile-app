@@ -120,8 +120,15 @@ data class LiveWorkout(
     val sessionId: String,
     val startedAtMillis: Long,
     val exercises: List<LiveExercise>,
-    val current: Int = 0,
-)
+    // Pause: time spent paused is left out of the workout time
+    val pausedAtMillis: Long? = null,
+    val pausedTotalMillis: Long = 0,
+) {
+    val paused get() = pausedAtMillis != null
+
+    // Active workout time (excludes pauses)
+    fun elapsedMillis(now: Long): Long = (pausedAtMillis ?: now) - startedAtMillis - pausedTotalMillis
+}
 
 fun formatWeight(weight: Double?): String =
     if (weight == null) "—" else (if (weight % 1.0 == 0.0) weight.toLong().toString() else weight.toString()) + " kg"

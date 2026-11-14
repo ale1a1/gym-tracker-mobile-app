@@ -50,11 +50,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
         // Watch-face timer follows the workout: rest countdown, otherwise the workout stopwatch
         viewModelScope.launch {
-            state.map { Triple(it.live?.let { live -> live.workout.title to live.startedAtMillis }, it.restEndsAtMillis, it.restLabel) }
+            state.map { s -> Triple(s.live?.let { Triple(it.workout.title, it.startedAtMillis + it.pausedTotalMillis, it.paused) }, s.restEndsAtMillis, s.restLabel) }
                 .distinctUntilChanged()
                 .collect { (workout, restEndsAt, restLabel) ->
                     when {
                         workout == null -> WorkoutAlerts.hideOngoing(appContext)
+                        workout.third -> WorkoutAlerts.showOngoing(appContext, workout.first, "Paused", 0L, countDown = false)
                         restEndsAt != null -> WorkoutAlerts.showOngoing(appContext, workout.first, restLabel, restEndsAt, countDown = true)
                         else -> WorkoutAlerts.showOngoing(appContext, workout.first, "Workout", workout.second, countDown = false)
                     }
@@ -100,7 +101,11 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     // Resumes the live session if this workout is already in progress (e.g. started on the phone),
     // otherwise starts a new one. Reps are prefilled from last time, like on the phone.
     fun startWorkout(workout: WorkoutRow, onReady: () -> Unit) = viewModelScope.launch {
-        _state.value.live?.let { if (it.workout.id == workout.id) { onReady(); return@launch } }
+        _state.value.live?.let { live ->
+            if (live.workout.id == workout.id) onReady()
+            else _state.update { it.copy(error = "Finish or discard \"${live.workout.title}\" first") }
+            return@launch
+        }
         _state.update { it.copy(loading = true, error = null) }
         runCatching {
             val completed = Repository.completedSessions(workout.id)
@@ -129,7 +134,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 sessionId = existing?.id ?: UUID.randomUUID().toString(),
                 startedAtMillis = existing?.startedAt?.let { parseTimestamp(it).toEpochMilli() } ?: System.currentTimeMillis(),
                 exercises = exercises,
-                current = exercises.indexOfFirst { !it.allDone }.coerceAtLeast(0),
             )
         }.onSuccess { live ->
             _state.update { it.copy(live = live) }
@@ -141,24 +145,33 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _state.update { it.copy(loading = false) }
     }
 
-    // Navigation only: which exercise is shown doesn't need saving
-    fun goToExercise(index: Int) {
-        updateLive { live -> live.copy(current = index.coerceIn(0, live.exercises.lastIndex)) }
-    }
-
-    fun changeReps(setIndex: Int, delta: Int) {
+    fun changeReps(exerciseIndex: Int, setIndex: Int, delta: Int) {
         val live = updateLive { live ->
-            live.withCurrent { ex -> ex.copy(reps = ex.reps.mapIndexed { i, r -> if (i == setIndex) (r + delta).coerceAtLeast(0) else r }) }
+            live.withExercise(exerciseIndex) { ex -> ex.copy(reps = ex.reps.mapIndexed { i, r -> if (i == setIndex) (r + delta).coerceAtLeast(0) else r }) }
         } ?: return
         save(live)
     }
 
-    fun toggleSetDone(setIndex: Int) {
+    fun pause() {
+        skipRest()
+        updateLive { live -> if (live.paused) live else live.copy(pausedAtMillis = System.currentTimeMillis()) }
+    }
+
+    fun resume() {
+        updateLive { live ->
+            val pausedAt = live.pausedAtMillis ?: return@updateLive live
+            live.copy(pausedAtMillis = null, pausedTotalMillis = live.pausedTotalMillis + (System.currentTimeMillis() - pausedAt))
+        }
+    }
+
+    fun toggleSetDone(exerciseIndex: Int, setIndex: Int) {
+        // Ticking a set while paused means you're training again
+        if (_state.value.live?.paused == true) resume()
         var startRest = false
         var exerciseFinished = false
         var exerciseRow: ExerciseRow? = null
         val live = updateLive { live ->
-            live.withCurrent { ex ->
+            live.withExercise(exerciseIndex) { ex ->
                 val nowDone = !ex.done[setIndex]
                 val updated = ex.copy(done = ex.done.mapIndexed { i, d -> if (i == setIndex) nowDone else d })
                 startRest = nowDone
@@ -176,9 +189,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     // Typed on the watch keypad; also saved as the workout's weight for next time
-    fun setWeight(weight: Double?) {
-        val exerciseId = _state.value.live?.let { it.exercises[it.current].row.id } ?: return
-        val live = updateLive { live -> live.withCurrent { ex -> ex.copy(weight = weight) } } ?: return
+    fun setWeight(exerciseIndex: Int, weight: Double?) {
+        val exerciseId = _state.value.live?.exercises?.getOrNull(exerciseIndex)?.row?.id ?: return
+        val live = updateLive { live -> live.withExercise(exerciseIndex) { ex -> ex.copy(weight = weight) } } ?: return
         save(live)
         viewModelScope.launch {
             runCatching { Repository.updateExerciseWeight(exerciseId, weight) }
@@ -230,8 +243,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         return result
     }
 
-    private fun LiveWorkout.withCurrent(transform: (LiveExercise) -> LiveExercise) =
-        copy(exercises = exercises.mapIndexed { i, ex -> if (i == current) transform(ex) else ex })
+    private fun LiveWorkout.withExercise(index: Int, transform: (LiveExercise) -> LiveExercise) =
+        copy(exercises = exercises.mapIndexed { i, ex -> if (i == index) transform(ex) else ex })
 
     // Real-time save: every change pushes the whole live session (a few rows), latest wins
     private fun save(live: LiveWorkout) {
@@ -251,7 +264,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         status = status,
         startedAt = Instant.ofEpochMilli(live.startedAtMillis).toString(),
         completedAt = completedAt,
-        durationSeconds = ((now - live.startedAtMillis) / 1000).toInt(),
+        durationSeconds = (live.elapsedMillis(now) / 1000).toInt(),
     )
 
     // Same set ids as the phone: "<session>-<exercise>-<set index>"
