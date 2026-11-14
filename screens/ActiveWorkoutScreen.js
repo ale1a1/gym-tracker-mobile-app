@@ -7,6 +7,7 @@ import { useWorkout } from "../context/WorkoutContext"
 import WeightControl from "../components/WeightControl"
 import KeyboardSafeView from "../components/KeyboardSafeView"
 import VideoButton from "../components/VideoButton"
+import AlternativesBox from "../components/AlternativesBox"
 import { formatWeight, hitTarget } from "../lib/workoutForm"
 import { useThemedStyles, useTheme } from "../lib/theme"
 
@@ -386,6 +387,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                   </View>
                 )}
                 {!!exercise.notes && <Text style={styles.notesText}>{exercise.notes}</Text>}
+                <AlternativesBox alternatives={exercise.alternatives} />
 
                 <WeightControl
                   weight={exercise.weight ?? null}

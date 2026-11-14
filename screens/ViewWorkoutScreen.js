@@ -5,6 +5,7 @@ import { useWorkout } from '../context/WorkoutContext'
 import WorkoutForm from '../components/WorkoutForm'
 import KeyboardSafeView from '../components/KeyboardSafeView'
 import VideoButton from '../components/VideoButton'
+import AlternativesBox from '../components/AlternativesBox'
 import { workoutToForm, formToWorkout, formatWeight } from '../lib/workoutForm'
 import { useThemedStyles, useTheme } from "../lib/theme"
 
@@ -261,6 +262,7 @@ export default function ViewWorkoutScreen({ route, navigation }) {
             )}
 
             <VideoButton videos={exercise.videos} />
+            <AlternativesBox alternatives={exercise.alternatives} />
           </TouchableOpacity>
           )
         })}

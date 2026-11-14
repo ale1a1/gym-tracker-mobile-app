@@ -17,6 +17,20 @@ data class ExerciseRow(
     val weight: Double? = null,
     val settings: String = "",
     val notes: String = "",
+    val alternatives: List<AlternativeRow> = emptyList(),
+)
+
+// "Oppure": another exercise to do instead (e.g. when the machine is busy)
+@Serializable
+data class AlternativeRow(
+    val id: String? = null,
+    val name: String,
+    val sets: Int? = null,
+    val reps: Int? = null,
+    val weight: Double? = null,
+    val settings: String = "",
+    val notes: String = "",
+    val videos: List<String> = emptyList(),
 )
 
 @Serializable

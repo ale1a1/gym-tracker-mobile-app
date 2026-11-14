@@ -253,6 +253,18 @@ private fun ActiveWorkoutScreen(
                 item { Text("Last: [${last.joinToString("-")}]", style = MaterialTheme.typography.bodySmall) }
             }
 
+            exercise.row.alternatives.forEach { alt ->
+                item {
+                    Text(
+                        "Alt: ${alt.name}" + (if (alt.sets != null && alt.reps != null) " ${alt.sets}×${alt.reps}" else "") +
+                            (if (alt.weight != null) " · ${formatWeight(alt.weight)}" else "") +
+                            (if (alt.settings.isNotBlank()) " (${alt.settings})" else ""),
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
             if (exercise.increaseSuggested) {
                 item {
                     Card(onClick = onEditWeight, modifier = Modifier.fillMaxWidth()) {

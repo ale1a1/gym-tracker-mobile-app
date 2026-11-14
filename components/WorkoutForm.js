@@ -1,7 +1,7 @@
 import { useRef } from "react"
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
-import { emptyExercise } from "../lib/workoutForm"
+import { emptyExercise, emptyAlternative } from "../lib/workoutForm"
 import { useThemedStyles, useTheme } from "../lib/theme"
 
 // Shared by Create Workout and the edit mode of View Workout
@@ -25,6 +25,13 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
       ...form,
       exercises: form.exercises.map((ex) => (ex.id === id ? { ...ex, [field]: value } : ex)),
     })
+
+  const updateAlternative = (exercise, altIndex, field, value) =>
+    updateExercise(
+      exercise.id,
+      "alternatives",
+      exercise.alternatives.map((alt, i) => (i === altIndex ? { ...alt, [field]: value } : alt)),
+    )
 
   const addExercise = () => onChange({ ...form, exercises: [...form.exercises, emptyExercise()] })
 
@@ -251,6 +258,84 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
                 <Text style={styles.addVideoText}>Add video link</Text>
               </TouchableOpacity>
             </View>
+
+            {/* Alternatives ("oppure"): other exercises to do instead, e.g. when the machine is busy */}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Alternatives</Text>
+              {(exercise.alternatives || []).map((alt, altIndex) => (
+                <View key={alt.id} style={styles.alternativeCard}>
+                  <View style={styles.alternativeHeader}>
+                    <Text style={styles.alternativeTitle}>Alternative {altIndex + 1}</Text>
+                    <TouchableOpacity
+                      style={styles.iconButton}
+                      onPress={() =>
+                        updateExercise(
+                          exercise.id,
+                          "alternatives",
+                          exercise.alternatives.filter((_, i) => i !== altIndex),
+                        )
+                      }
+                    >
+                      <Ionicons name="close-circle" size={22} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    placeholderTextColor={theme.textFaint}
+                    style={[styles.input, styles.alternativeInput]}
+                    value={alt.name}
+                    onChangeText={(value) => updateAlternative(exercise, altIndex, "name", value)}
+                    placeholder="e.g., Diverging seated row"
+                  />
+                  <View style={styles.row}>
+                    <TextInput
+                      placeholderTextColor={theme.textFaint}
+                      style={[styles.input, styles.alternativeInput, styles.thirdWidth]}
+                      value={alt.sets}
+                      onChangeText={(value) => updateAlternative(exercise, altIndex, "sets", value)}
+                      placeholder="sets"
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      placeholderTextColor={theme.textFaint}
+                      style={[styles.input, styles.alternativeInput, styles.thirdWidth]}
+                      value={alt.reps}
+                      onChangeText={(value) => updateAlternative(exercise, altIndex, "reps", value)}
+                      placeholder="reps"
+                      keyboardType="numeric"
+                    />
+                    <TextInput
+                      placeholderTextColor={theme.textFaint}
+                      style={[styles.input, styles.alternativeInput, styles.thirdWidth]}
+                      value={alt.weight}
+                      onChangeText={(value) => updateAlternative(exercise, altIndex, "weight", value)}
+                      placeholder="kg"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <TextInput
+                    placeholderTextColor={theme.textFaint}
+                    style={[styles.input, styles.alternativeInput]}
+                    value={alt.settings}
+                    onChangeText={(value) => updateAlternative(exercise, altIndex, "settings", value)}
+                    placeholder="Machine settings (optional)"
+                  />
+                  <TextInput
+                    placeholderTextColor={theme.textFaint}
+                    style={[styles.input, styles.alternativeInput]}
+                    value={alt.notes}
+                    onChangeText={(value) => updateAlternative(exercise, altIndex, "notes", value)}
+                    placeholder="Notes (optional)"
+                  />
+                </View>
+              ))}
+              <TouchableOpacity
+                style={styles.addAlternativeButton}
+                onPress={() => updateExercise(exercise.id, "alternatives", [...(exercise.alternatives || []), emptyAlternative()])}
+              >
+                <Ionicons name="swap-horizontal" size={18} color={theme.primary} />
+                <Text style={styles.addAlternativeText}>Add alternative</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ))}
       </View>
@@ -324,6 +409,43 @@ const makeStyles = (c) => StyleSheet.create({
     color: c.primary,
     fontWeight: "500",
     marginLeft: 4,
+  },
+  alternativeCard: {
+    borderWidth: 1,
+    borderColor: c.infoBorder,
+    borderStyle: "dashed",
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 8,
+    gap: 8,
+  },
+  alternativeHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  alternativeTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: c.primary,
+  },
+  alternativeInput: {
+    padding: 10,
+    fontSize: 15,
+  },
+  addAlternativeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: c.infoBg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 6,
+  },
+  addAlternativeText: {
+    color: c.primary,
+    fontWeight: "500",
   },
   focusedCard: {
     borderWidth: 2,
