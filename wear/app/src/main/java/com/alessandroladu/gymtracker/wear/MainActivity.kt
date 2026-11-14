@@ -358,7 +358,10 @@ private fun WorkoutListScreen(
                     switchTo = null
                     viewModel.switchWorkout(next, mode) { onOpenWorkout() }
                 },
-                onCancel = { switchTo = null },
+                onCancel = {
+                    switchTo = null
+                    onOpenWorkout()
+                },
             )
         }
     }
@@ -858,7 +861,7 @@ private fun WorkoutPreviewScreen(
     }
 }
 
-// Another workout is running: finish it, or close it (discard / keep progress for later), then start this one
+// Another workout is running: finish & save it or discard it (then start the new one), or go back to it
 @Composable
 private fun SwitchWorkoutDialog(
     current: String,
@@ -866,63 +869,28 @@ private fun SwitchWorkoutDialog(
     onChoice: (WorkoutViewModel.EndMode) -> Unit,
     onCancel: () -> Unit,
 ) {
-    var closing by remember { mutableStateOf(false) }
-    val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
-    Box(modifier = Modifier.fillMaxSize().background(Color(0xF0000000))) {
-        ScalingLazyColumn(
-            state = listState,
-            autoCentering = null,
-            contentPadding = PaddingValues(top = 36.dp, bottom = 60.dp, start = 10.dp, end = 10.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            item {
-                Text(
-                    "$current is in progress",
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    textAlign = TextAlign.Center,
-                )
-            }
-            item {
-                Text(
-                    if (closing) "Close $current and start $next:" else "What do you want to do before starting $next?",
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(bottom = 6.dp),
-                )
-            }
-            if (!closing) {
-                item {
-                    Button(
-                        onClick = { onChoice(WorkoutViewModel.EndMode.FINISH) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White),
-                    ) { Text("✓ Finish $current", fontWeight = FontWeight.Bold) }
-                }
-                item {
-                    FilledTonalButton(onClick = { closing = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text("Close $current")
-                    }
-                }
-            } else {
-                item {
-                    FilledTonalButton(
-                        onClick = { onChoice(WorkoutViewModel.EndMode.KEEP_FOR_LATER) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { Text("Close & save progress") }
-                }
-                item {
-                    Button(
-                        onClick = { onChoice(WorkoutViewModel.EndMode.DISCARD) },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
-                    ) { Text("Close & discard", fontWeight = FontWeight.Bold) }
-                }
-            }
-            item {
-                CompactButton(onClick = { if (closing) closing = false else onCancel() }, modifier = Modifier.padding(top = 4.dp)) {
-                    Text(if (closing) "Back" else "Cancel")
-                }
+    Box(modifier = Modifier.fillMaxSize().background(Color(0xF0000000)), contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(top = 8.dp, start = 24.dp, end = 24.dp)) {
+            Text(
+                "$current is in progress",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                "End it to start $next",
+                fontSize = 12.sp,
+                color = Color.Gray,
+                textAlign = TextAlign.Center,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Column(modifier = Modifier.padding(top = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                DialogButton("✓ Finish & save", Green) { onChoice(WorkoutViewModel.EndMode.FINISH) }
+                DialogButton("✕ Discard", Red) { onChoice(WorkoutViewModel.EndMode.DISCARD) }
+                DialogButton("Continue", Color(0xFF34343A), onCancel)
             }
         }
     }

@@ -267,9 +267,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    enum class EndMode { FINISH, DISCARD, KEEP_FOR_LATER }
+    enum class EndMode { FINISH, DISCARD }
 
-    // Another workout is running: finish it, discard it, or keep its progress for later, then start the new one
+    // Another workout is running: finish or discard it, then start the new one
     fun switchWorkout(next: WorkoutRow, mode: EndMode, onReady: () -> Unit) {
         viewModelScope.launch {
             endCurrent(mode)
@@ -291,7 +291,6 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     )
                     EndMode.DISCARD -> Repository.deleteSession(live.sessionId)
                     // Stays "in progress" in the cloud; opening that workout again continues it
-                    EndMode.KEEP_FOR_LATER -> Repository.saveSession(session(live, "in_progress", null, now), sets(live))
                 }
             }.onFailure { e -> fail("Couldn't save. Check the connection.", e) }
         }
