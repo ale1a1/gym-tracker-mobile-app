@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -671,7 +672,49 @@ private fun WorkoutHeader(
     }
 }
 
-// Stop pressed: finish and save, discard, or keep going
+// Stop pressed: finish and save, discard, or keep going (three identical buttons)
+@Composable
+private fun EndWorkoutDialog(title: String, onFinish: () -> Unit, onDiscard: () -> Unit, onCancel: () -> Unit) {
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color(0xF0000000)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(top = 26.dp, start = 24.dp, end = 24.dp),
+        ) {
+            Text("End $title?", fontSize = 17.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+            Column(
+                modifier = Modifier.padding(top = 14.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                DialogButton("✓ Finish & save", Green, onFinish)
+                DialogButton("✕ Discard", Red, onDiscard)
+                DialogButton("Keep going", Color(0xFF34343A), onCancel)
+            }
+        }
+    }
+}
+
+// Same size, font and padding for every dialog choice; only the colour differs
+@Composable
+private fun DialogButton(label: String, color: Color, onClick: () -> Unit) {
+    Text(
+        label,
+        modifier = Modifier
+            .width(150.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(color)
+            .clickable(onClick = onClick)
+            .padding(vertical = 9.dp),
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        color = Color.White,
+        textAlign = TextAlign.Center,
+    )
+}
+
 @Composable
 private fun EndWorkoutDialog(title: String, onFinish: () -> Unit, onDiscard: () -> Unit, onCancel: () -> Unit) {
     Box(
