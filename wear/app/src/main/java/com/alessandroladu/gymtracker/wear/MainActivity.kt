@@ -309,6 +309,8 @@ private fun ActiveWorkoutScreen(
     // Starts at the top (no centring gap above the timer)
     val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
     var confirmEnd by remember { mutableStateOf(false) }
+    // Full exercise name shown in a small popup when a (truncated) title is tapped
+    var fullTitle by remember { mutableStateOf<String?>(null) }
 
     // Ticks once a second for the stopwatch and the rest countdown
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -341,6 +343,7 @@ private fun ActiveWorkoutScreen(
                     ) {
                         Text(
                             exercise.row.name,
+                            modifier = Modifier.clickable { fullTitle = exercise.row.name },
                             textAlign = TextAlign.Center,
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
@@ -466,6 +469,26 @@ private fun ActiveWorkoutScreen(
                 onStop = { confirmEnd = true },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
             )
+        }
+
+        fullTitle?.let { name ->
+            // Tap anywhere to close
+            Box(
+                modifier = Modifier.fillMaxSize().background(Color(0xCC000000)).clickable { fullTitle = null },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    name,
+                    modifier = Modifier
+                        .padding(horizontal = 30.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color(0xFF2C2C30))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
 
         if (confirmEnd) {
