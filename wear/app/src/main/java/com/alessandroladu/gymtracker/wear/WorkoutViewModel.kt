@@ -15,6 +15,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -40,7 +42,24 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private val saveLock = Mutex()
     private var restJob: Job? = null
 
+    private val appContext get() = getApplication<Application>()
+
     init {
+        WorkoutAlerts.createChannels(appContext)
+
+        // Watch-face timer follows the workout: rest countdown, otherwise the workout stopwatch
+        viewModelScope.launch {
+            state.map { Triple(it.live?.let { live -> live.workout.title to live.startedAtMillis }, it.restEndsAtMillis, it.restLabel) }
+                .distinctUntilChanged()
+                .collect { (workout, restEndsAt, restLabel) ->
+                    when {
+                        workout == null -> WorkoutAlerts.hideOngoing(appContext)
+                        restEndsAt != null -> WorkoutAlerts.showOngoing(appContext, workout.first, restLabel, restEndsAt, countDown = true)
+                        else -> WorkoutAlerts.showOngoing(appContext, workout.first, "Workout", workout.second, countDown = false)
+                    }
+                }
+        }
+
         viewModelScope.launch {
             supabase.auth.sessionStatus.collect { status ->
                 when (status) {
@@ -160,6 +179,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun skipRest() {
         restJob?.cancel()
+        WorkoutAlerts.cancelRestAlarm(appContext)
         _state.update { it.copy(restEndsAtMillis = null) }
     }
 
@@ -247,10 +267,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         restJob?.cancel()
         val endsAt = System.currentTimeMillis() + seconds * 1000L
         _state.update { it.copy(restEndsAtMillis = endsAt, restLabel = label) }
+        // The alarm rings and vibrates even with the app in the background; vibrate in-app only if it failed
+        val alarmScheduled = WorkoutAlerts.scheduleRestAlarm(appContext, endsAt)
         restJob = viewModelScope.launch {
             delay(seconds * 1000L)
             _state.update { it.copy(restEndsAtMillis = null) }
-            vibrate()
+            if (!alarmScheduled) vibrate()
         }
     }
 

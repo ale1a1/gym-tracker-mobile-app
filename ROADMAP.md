@@ -58,10 +58,12 @@
 - [x] Weight: tap it to open a big keypad with decimals (e.g. 99.5). It is saved to the session and as the workout's weight. No +/− for weight.
 - [x] Real-time saving of every change to the same live session as the phone. Finish & save, or discard.
 - [x] The screen stays on during a workout so the timers keep running.
+- [x] Timer on the watch face (ongoing activity): workout stopwatch, or the rest countdown while resting.
+- [x] Rest alarm (AlarmManager + alarm-type notification): vibrates and rings when the rest ends, even with the app in the background.
+- [x] Exercise notes and alternatives shown on the exercise screen.
 
 ### To do
 - [ ] Test on the Pixel Watch: sign-in, sync, rest vibration.
-- [ ] Ongoing activity (timer on the watch face) and rest alerts when the app is in the background.
 - [ ] Live updates between phone and watch while both are open (Supabase Realtime).
 - [ ] App icon.
 

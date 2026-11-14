@@ -1,5 +1,7 @@
 package com.alessandroladu.gymtracker.wear
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -54,6 +56,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Needed for the rest alarm and the timer on the watch face
+        if (Build.VERSION.SDK_INT >= 33) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
+        }
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -248,6 +254,9 @@ private fun ActiveWorkoutScreen(
             item { Text("Target ${exercise.row.sets} × ${exercise.row.reps}", style = MaterialTheme.typography.bodySmall) }
             if (exercise.row.settings.isNotBlank()) {
                 item { Text("⚙ ${exercise.row.settings}", style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
+            }
+            if (exercise.row.notes.isNotBlank()) {
+                item { Text(exercise.row.notes, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center) }
             }
             exercise.lastReps?.let { last ->
                 item { Text("Last: [${last.joinToString("-")}]", style = MaterialTheme.typography.bodySmall) }
