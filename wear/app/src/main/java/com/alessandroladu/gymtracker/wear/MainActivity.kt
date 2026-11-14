@@ -458,7 +458,7 @@ private fun ActiveWorkoutScreen(
                 onSkip = { viewModel.skipRest() },
                 modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
             )
-        } else {
+        } else if (state.restOverAtMillis == null) { // hidden while "Rest is over" flashes
             WorkoutHeader(
                 elapsedSeconds = live.elapsedMillis(now) / 1000,
                 paused = live.paused,
