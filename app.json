@@ -29,7 +29,8 @@
     "plugins": [
       "expo-status-bar",
       "expo-notifications",
-      "./plugins/withReleaseSigning"
+      "./plugins/withReleaseSigning",
+      "./plugins/withNoForceDark"
     ]
   }
 }
