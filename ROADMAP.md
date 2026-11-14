@@ -21,12 +21,12 @@
 - [x] Live timer on the lock screen and status bar (native module `modules/live-timer`).
 - [x] Input text stays visible in dark mode. The keyboard no longer covers the field being typed.
 - [x] Google sign-in button (links Google to the current account, keeping the data).
+- [x] Alternatives ("oppure"), per-exercise rest, History modal (last 10, filter by month/week), app name "Gym Tracker" and bicep icon.
 
 ### To do / to verify on the phone
 - [ ] Test the lock-screen live timer (stopwatch, rest countdown, paused).
 - [ ] Test Google sign-in end to end ("Synced as …").
 - [ ] Workout history screen: past sessions per workout, with weight and reps over time.
-- [ ] App icon and name (currently the Expo defaults / "GymTrackerSimple").
 
 ---
 
@@ -38,8 +38,6 @@
 - [x] **Real-time workout saving**: a live session (`status = in_progress`) is created when a workout starts. Every set tick, reps change and weight change is pushed within a second. Finish marks it `completed`; cancel deletes it.
 
 ### To do
-- [ ] Supabase Realtime subscription, so the phone and the watch see each other's changes instantly while both are open.
-- [ ] Only one active workout at a time across devices (resume the live session from either device).
 - [ ] Optional: CAPTCHA for anonymous sign-ups (Supabase suggests it; low priority for a personal app).
 
 ---
@@ -64,8 +62,6 @@
 
 ### To do
 - [ ] Test on the Pixel Watch: sign-in, sync, rest vibration.
-- [ ] Live updates between phone and watch while both are open (Supabase Realtime).
-- [ ] App icon.
 
 ---
 
