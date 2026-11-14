@@ -245,7 +245,6 @@ private fun WorkoutListScreen(
     val listState = rememberScalingLazyListState()
     // ▶ pressed on another workout while one is running: ask what to do with the running one
     var switchTo by remember { mutableStateOf<WorkoutRow?>(null) }
-    var fullName by remember { mutableStateOf<String?>(null) }
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
             state = listState,
@@ -282,7 +281,8 @@ private fun WorkoutListScreen(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            NameText(workout.title, fontSize = 15.sp, color = Color.White) { fullName = workout.title }
+                            // Plain label: tapping anywhere on the card opens the workout (no full-name popup here)
+                            Text(workout.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White)
                             Text(
                                 if (running) "In progress" else "${workout.exercises.size} exercises",
                                 fontSize = 12.sp,
@@ -347,7 +347,6 @@ private fun WorkoutListScreen(
             }
         }
 
-        fullName?.let { name -> FullNamePopup(name) { fullName = null } }
 
         val current = state.live
         val next = switchTo
