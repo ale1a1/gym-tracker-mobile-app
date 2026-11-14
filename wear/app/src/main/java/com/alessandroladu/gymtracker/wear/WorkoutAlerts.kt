@@ -152,16 +152,31 @@ object WorkoutAlerts {
         // Loud enough to hear in the gym, then put the alarm volume back
         runCatching { audio.setStreamVolume(AudioManager.STREAM_ALARM, audio.getStreamMaxVolume(AudioManager.STREAM_ALARM), 0) }
 
-        val tone = runCatching { ToneGenerator(AudioManager.STREAM_ALARM, ToneGenerator.MAX_VOLUME) }.getOrNull()
         val handler = Handler(Looper.getMainLooper())
-        listOf(0L, 450L, 900L).forEach { delay ->
-            handler.postDelayed({ tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 300) }, delay)
+        // The watch's own notification tone, played as an alarm; plain beeps only if it's missing
+        val ringtone = runCatching {
+            RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION))?.apply {
+                audioAttributes = AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_ALARM)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            }
+        }.getOrNull()
+        var tone: ToneGenerator? = null
+        if (ringtone != null) {
+            ringtone.play()
+        } else {
+            tone = runCatching { ToneGenerator(AudioManager.STREAM_ALARM, ToneGenerator.MAX_VOLUME) }.getOrNull()
+            listOf(0L, 450L, 900L).forEach { delay ->
+                handler.postDelayed({ tone?.startTone(ToneGenerator.TONE_PROP_BEEP2, 300) }, delay)
+            }
         }
         handler.postDelayed({
+            runCatching { ringtone?.stop() }
             tone?.release()
             runCatching { audio.setStreamVolume(AudioManager.STREAM_ALARM, previousVolume, 0) }
             onDone()
-        }, 1700L)
+        }, 3000L)
 
         showRestFinished(context)
     }
@@ -173,7 +188,13 @@ object WorkoutAlerts {
             @Suppress("DEPRECATION")
             context.getSystemService(Vibrator::class.java)
         }
-        val effect = VibrationEffect.createWaveform(longArrayOf(0, 600, 200, 600, 200, 600), -1)
+        // Three long buzzes at full strength
+        val timings = longArrayOf(0, 700, 200, 700, 200, 900)
+        val effect = if (vibrator.hasAmplitudeControl()) {
+            VibrationEffect.createWaveform(timings, intArrayOf(0, 255, 0, 255, 0, 255), -1)
+        } else {
+            VibrationEffect.createWaveform(timings, -1)
+        }
         if (Build.VERSION.SDK_INT >= 33) {
             vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_ALARM))
         } else {

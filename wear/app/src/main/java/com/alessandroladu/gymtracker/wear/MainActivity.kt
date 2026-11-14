@@ -50,7 +50,8 @@ import androidx.wear.compose.material3.AppScaffold
 import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.Card
-import androidx.wear.compose.material3.FilledTonalIconButton
+import androidx.wear.compose.material3.FilledIconButton
+import androidx.wear.compose.material3.IconButtonDefaults
 import androidx.wear.compose.material3.Icon
 import androidx.wear.compose.material3.OutlinedIconButton
 import androidx.compose.foundation.BorderStroke
@@ -250,16 +251,22 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPre
                 var confirmSignOut by remember { mutableStateOf(false) }
                 // Icon buttons: refresh, and sign out (door, red border; second tap confirms)
                 Row(
-                    modifier = Modifier.padding(top = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(top = 24.dp),
+                    horizontalArrangement = Arrangement.spacedBy(20.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    FilledTonalIconButton(onClick = { viewModel.loadWorkouts() }, enabled = !state.loading) {
+                    FilledIconButton(
+                        onClick = { viewModel.loadWorkouts() },
+                        enabled = !state.loading,
+                        modifier = Modifier.size(40.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(containerColor = Orange, contentColor = Color(0xFF1F1300)),
+                    ) {
                         Icon(Icons.Filled.Refresh, contentDescription = "Refresh")
                     }
                     if (!confirmSignOut) {
                         OutlinedIconButton(
                             onClick = { confirmSignOut = true },
+                            modifier = Modifier.size(40.dp),
                             border = BorderStroke(2.dp, Red),
                         ) {
                             Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Sign out", tint = Red)
@@ -456,31 +463,42 @@ private fun ActiveWorkoutScreen(
         }
 
         state.restEndsAtMillis?.let { endsAt ->
-            RestOverlay(
+            RestBadge(
                 label = state.restLabel,
                 secondsLeft = ((endsAt - now) / 1000).coerceAtLeast(0),
                 onSkip = { viewModel.skipRest() },
+                modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
             )
         }
     }
 }
 
-// Sticky orange countdown over the whole screen while resting
+// Sticky orange badge at the top while resting; the list keeps scrolling underneath
 @Composable
-private fun RestOverlay(label: String, secondsLeft: Long, onSkip: () -> Unit) {
-    Box(
-        modifier = Modifier.fillMaxSize().background(Color(0xF2F59E0B)),
-        contentAlignment = Alignment.Center,
+private fun RestBadge(label: String, secondsLeft: Long, onSkip: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(Color(0xFFF59E0B))
+            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(label, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
-            Text(formatDuration(secondsLeft), fontSize = 56.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
-            CompactButton(
-                onClick = onSkip,
-                modifier = Modifier.padding(top = 8.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1F1300)),
-            ) { Text("Skip", color = Color.White, fontWeight = FontWeight.Bold) }
+        Column {
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
+            Text(formatDuration(secondsLeft), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
         }
+        Text(
+            "Skip",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1F1300))
+                .clickable(onClick = onSkip)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
+        )
     }
 }
 
@@ -685,6 +703,7 @@ private fun PaddingValues.withBottomRoom(): PaddingValues {
 
 private val Green = Color(0xFF10B981)
 private val Red = Color(0xFFEF4444)
+private val Orange = Color(0xFFF59E0B)
 
 @Composable
 private fun Message(text: String) {
