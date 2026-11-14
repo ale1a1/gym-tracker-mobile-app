@@ -58,6 +58,7 @@ import androidx.wear.compose.material3.OutlinedIconButton
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.ui.graphics.Color
 import androidx.wear.compose.material3.CompactButton
@@ -341,7 +342,9 @@ private fun ActiveWorkoutScreen(
                             Text("▶ Resume", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     } else {
-                        CompactButton(onClick = { viewModel.pause() }, colors = ButtonDefaults.filledTonalButtonColors()) { Text("Pause") }
+                        CompactButton(onClick = { viewModel.pause() }, colors = ButtonDefaults.buttonColors(containerColor = Orange)) {
+                            Text("Pause", color = Color(0xFF1F1300), fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
@@ -390,10 +393,10 @@ private fun ActiveWorkoutScreen(
                             "History",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
-                            color = Orange,
+                            color = SoftBlue,
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
-                                .border(1.dp, Orange, RoundedCornerShape(10.dp))
+                                .border(1.dp, SoftBlue, RoundedCornerShape(10.dp))
                                 .clickable { onHistory(exerciseIndex) }
                                 .padding(horizontal = 8.dp, vertical = 2.dp),
                         )
@@ -417,17 +420,23 @@ private fun ActiveWorkoutScreen(
                 if (exercise.increaseSuggested) {
                     item {
                         // Small orange pill (last time every set hit the target); tap to set the new weight
-                        Text(
-                            "⬆ Increase the weight today",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF1F1300),
+                        Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFFF59E0B))
+                                .background(Orange)
                                 .clickable { onEditWeight(exerciseIndex) }
-                                .padding(horizontal = 10.dp, vertical = 4.dp),
-                        )
+                                .padding(start = 6.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp),
+                        ) {
+                            Icon(
+                                Icons.Filled.KeyboardArrowUp,
+                                contentDescription = null,
+                                tint = Color(0xFF1F1300),
+                                modifier = Modifier.size(20.dp),
+                            )
+                            Text("Increase the weight today", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
+                        }
                     }
                 }
 
@@ -467,7 +476,11 @@ private fun ActiveWorkoutScreen(
 
             item {
                 if (!confirmEnd) {
-                    Button(onClick = { confirmEnd = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) { Text("End workout") }
+                    Button(
+                        onClick = { confirmEnd = true },
+                        modifier = Modifier.padding(top = 12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Red, contentColor = Color.White),
+                    ) { Text("End workout", fontWeight = FontWeight.Bold) }
                 } else {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -855,6 +868,7 @@ private fun PaddingValues.withBottomRoom(): PaddingValues {
 private val Green = Color(0xFF10B981)
 private val Red = Color(0xFFEF4444)
 private val Orange = Color(0xFFF59E0B)
+private val SoftBlue = Color(0xFF93C5FD)
 
 @Composable
 private fun Message(text: String) {
