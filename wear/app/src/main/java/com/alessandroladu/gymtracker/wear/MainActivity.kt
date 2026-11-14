@@ -752,7 +752,14 @@ private fun WorkoutPreviewScreen(
                             .clickable(enabled = !state.loading, onClick = { if (other != null) showSwitch = true else onStart() }),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Text(if (state.loading) "…" else "▶", fontSize = 22.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        if (state.loading) {
+                            // Three dots drawn in the exact centre (the "…" glyph sat low)
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                                repeat(3) { Box(Modifier.size(6.dp).clip(CircleShape).background(Color.White)) }
+                            }
+                        } else {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Start", tint = Color.White, modifier = Modifier.size(30.dp))
+                        }
                     }
                 }
             }
