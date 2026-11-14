@@ -595,8 +595,15 @@ private fun RestOverFlash(key: Long, onFinished: () -> Unit) {
     ) {
         if (visible) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("💪", fontSize = 40.sp)
-                Text("Rest is over", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                // Play sign = back to work (the bicep means "workout done")
+                Box(
+                    modifier = Modifier.size(64.dp).clip(CircleShape).background(Color.White),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = Green, modifier = Modifier.size(44.dp))
+                }
+                Text("Rest is over", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.padding(top = 8.dp))
+                Text("Back to work", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
     }

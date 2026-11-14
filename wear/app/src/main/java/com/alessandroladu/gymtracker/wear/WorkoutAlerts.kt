@@ -9,6 +9,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.BitmapFactory
 import android.media.AudioAttributes
 import android.media.AudioManager
 import android.media.RingtoneManager
@@ -39,6 +40,11 @@ object WorkoutAlerts {
     private const val ONGOING_ID = 4310
     private const val REST_ID = 4311
     private const val REST_REQUEST = 4312
+
+    // The full-colour app icon (bicep on blue), shown as the notification picture; the small
+    // status icon has to stay a one-colour silhouette (Android rule)
+    private fun appIcon(context: Context) =
+        BitmapFactory.decodeResource(context.resources, R.mipmap.ic_launcher)
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
@@ -79,6 +85,7 @@ object WorkoutAlerts {
     fun showOngoing(context: Context, title: String, text: String, baseTimeMillis: Long, countDown: Boolean) {
         if (!canNotify(context)) return
         val builder = NotificationCompat.Builder(context, ONGOING_CHANNEL)
+            .setLargeIcon(appIcon(context))
             .setSmallIcon(R.drawable.ic_stat_bicep)
             .setContentTitle(title)
             .setContentText(text)
@@ -213,8 +220,9 @@ object WorkoutAlerts {
         val notification = NotificationCompat.Builder(context, REST_CHANNEL)
             .setSilent(true)
             .setSmallIcon(R.drawable.ic_stat_bicep)
-            .setContentTitle("Rest is over 💪")
-            .setContentText("Time for your next set")
+            .setLargeIcon(appIcon(context))
+            .setContentTitle("Rest is over")
+            .setContentText("Back to work")
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setAutoCancel(true)
