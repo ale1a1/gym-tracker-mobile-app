@@ -99,7 +99,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         _state.value.live?.let { if (it.workout.id == workout.id) { onReady(); return@launch } }
         _state.update { it.copy(loading = true, error = null) }
         runCatching {
-            val last = Repository.lastCompletedSession(workout.id)
+            val completed = Repository.completedSessions(workout.id)
+            val last = completed.firstOrNull()
             val existing = Repository.inProgressSession(workout.id)
 
             val exercises = workout.exercises.map { ex ->
@@ -115,7 +116,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                     liveSets.getOrNull(i)?.reps ?: lastReps?.getOrNull(i) ?: ex.reps
                 }
                 val done = List(ex.sets) { i -> liveSets.getOrNull(i)?.completed ?: false }
-                LiveExercise(ex, ex.weight, reps, done, lastReps, increase)
+                val best = bestOf(completed.flatMap { s -> s.sets.filter { it.exerciseId == ex.id } })
+                LiveExercise(ex, ex.weight, reps, done, lastReps, increase, best)
             }
 
             LiveWorkout(

@@ -34,19 +34,6 @@ object Repository {
             .decodeList<WorkoutRow>()
             .map { workout -> workout.copy(exercises = workout.exercises.sortedBy { it.position }) }
 
-    suspend fun lastCompletedSession(workoutId: String): SessionRow? =
-        supabase.from("workout_sessions")
-            .select(Columns.raw("id, workout_id, title, status, started_at, completed_at, session_sets(*)")) {
-                filter {
-                    eq("workout_id", workoutId)
-                    eq("status", "completed")
-                }
-                order("completed_at", Order.DESCENDING)
-                limit(1)
-            }
-            .decodeList<SessionRow>()
-            .firstOrNull()
-
     // All finished sessions of a workout, newest first (for History)
     suspend fun completedSessions(workoutId: String): List<SessionRow> =
         supabase.from("workout_sessions")

@@ -293,6 +293,12 @@ private fun ActiveWorkoutScreen(
                 }
             }
 
+            if (exercise.newRecord) {
+                item {
+                    Text("🏆 New record!", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+
             if (exercise.increaseSuggested) {
                 item {
                     Card(onClick = onEditWeight, modifier = Modifier.fillMaxWidth()) {
@@ -469,7 +475,8 @@ private fun HistoryScreen(workoutId: String, exercise: ExerciseRow) {
                         Text(entry.date.format(DateTimeFormatter.ofPattern("EEE d MMM yyyy")), fontWeight = FontWeight.Bold)
                         Text(
                             "${entry.reps.size} sets [${entry.reps.joinToString("-")}]" +
-                                (entry.weight?.let { " · ${formatWeight(it)}" } ?: ""),
+                                (entry.weight?.let { " · ${formatWeight(it)}" } ?: "") +
+                                (if (entry.record) " 🏆" else ""),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
