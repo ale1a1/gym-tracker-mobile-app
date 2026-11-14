@@ -684,8 +684,8 @@ private fun EndWorkoutDialog(title: String, onFinish: () -> Unit, onDiscard: () 
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 DialogButton("✓ Finish & save", Green, onFinish)
-                DialogButton("✕ Discard", Red, onDiscard)
-                DialogButton("Keep going", Color(0xFF34343A), onCancel)
+                DialogButton("✕ Discard progress", Red, onDiscard)
+                DialogButton("Continue workout", Color(0xFF34343A), onCancel)
             }
         }
     }
@@ -697,7 +697,7 @@ private fun DialogButton(label: String, color: Color, onClick: () -> Unit) {
     Text(
         label,
         modifier = Modifier
-            .width(150.dp)
+            .width(164.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(color)
             .clickable(onClick = onClick)
@@ -889,8 +889,8 @@ private fun SwitchWorkoutDialog(
             )
             Column(modifier = Modifier.padding(top = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 DialogButton("✓ Finish & save", Green) { onChoice(WorkoutViewModel.EndMode.FINISH) }
-                DialogButton("✕ Discard", Red) { onChoice(WorkoutViewModel.EndMode.DISCARD) }
-                DialogButton("Continue", Color(0xFF34343A), onCancel)
+                DialogButton("✕ Discard progress", Red) { onChoice(WorkoutViewModel.EndMode.DISCARD) }
+                DialogButton("Continue workout", Color(0xFF34343A), onCancel)
             }
         }
     }
