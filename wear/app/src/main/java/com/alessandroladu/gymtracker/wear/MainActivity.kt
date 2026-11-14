@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -255,7 +256,11 @@ private fun WorkoutListScreen(
         ) {
             item { ListHeader { Text("Workouts", fontSize = 20.sp, fontWeight = FontWeight.Bold) } }
             state.error?.let { error -> item { ErrorText(error) { viewModel.clearError() } } }
-            if (state.workouts.isEmpty() && !state.loading) {
+            // Waiting for the cloud: a small spinner, nothing else (no "No workouts" flash)
+            val waiting = !state.workoutsLoaded && state.error == null
+            if (waiting) {
+                item { SmallSpinner(Modifier.padding(top = 12.dp)) }
+            } else if (state.workouts.isEmpty() && !state.loading) {
                 item { Text("No workouts yet. Create them on the phone.", textAlign = TextAlign.Center) }
             }
             state.workouts.forEach { workout ->
@@ -313,7 +318,7 @@ private fun WorkoutListScreen(
                     }
                 }
             }
-            item {
+            if (!waiting) item {
                 var confirmSignOut by remember { mutableStateOf(false) }
                 // Icon buttons: refresh, and sign out (door, red border; second tap confirms)
                 Row(
@@ -1207,6 +1212,24 @@ private fun NameText(
         overflow = TextOverflow.Ellipsis,
         onTextLayout = { cut = it.hasVisualOverflow },
     )
+}
+
+// Small, subtle loading spinner: a thin ring with a short green arc turning
+@Composable
+private fun SmallSpinner(modifier: Modifier = Modifier) {
+    val angle by androidx.compose.animation.core.rememberInfiniteTransition(label = "spinner").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(900, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "angle",
+    )
+    androidx.compose.foundation.Canvas(modifier.size(22.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5.dp.toPx(), cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawArc(Color(0xFF34343A), 0f, 360f, useCenter = false, style = stroke)
+        drawArc(Green, angle, 80f, useCenter = false, style = stroke)
+    }
 }
 
 // Full name of a title cut with "…"; tap anywhere to close

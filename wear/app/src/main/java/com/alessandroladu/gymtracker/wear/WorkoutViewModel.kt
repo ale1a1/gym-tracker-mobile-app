@@ -30,6 +30,8 @@ data class UiState(
     val loading: Boolean = false,
     val error: String? = null,
     val workouts: List<WorkoutRow> = emptyList(),
+    // False until the first answer from the cloud: the list shows a spinner, not "No workouts yet"
+    val workoutsLoaded: Boolean = false,
     val live: LiveWorkout? = null,
     val restEndsAtMillis: Long? = null,
     val restLabel: String = "",
@@ -133,7 +135,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
                 Log.e("GymTracker", "loadWorkouts failed", e)
                 fail("Couldn't load workouts. Check the connection and tap refresh.", e)
             }
-        _state.update { it.copy(loading = false) }
+        _state.update { it.copy(loading = false, workoutsLoaded = true) }
     }
 
     // Resumes the live session if this workout is already in progress (e.g. started on the phone),
