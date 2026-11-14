@@ -37,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -321,7 +322,7 @@ private fun ActiveWorkoutScreen(
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
             state = listState,
-            contentPadding = padding.withBottomRoom().withTopRoom(60.dp),
+            contentPadding = padding.withBottomRoom().withTopRoom(50.dp),
             autoCentering = null,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -330,14 +331,18 @@ private fun ActiveWorkoutScreen(
             // All exercises, one after the other
             live.exercises.forEachIndexed { exerciseIndex, exercise ->
                 item {
-                    ListHeader {
-                        Text(
-                            exercise.row.name,
-                            textAlign = TextAlign.Center,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                        )
-                    }
+                    // Space above each exercise, so it separates from the one before
+                    // Plain text (ListHeader adds a big gap below): space above to separate from
+                    // the exercise before, tight below; one line only, "…" if still too long
+                    Text(
+                        exercise.row.name,
+                        modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 2.dp, start = 12.dp, end = 12.dp),
+                        textAlign = TextAlign.Center,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
                 }
 
                 if (exercise.row.setRest != null || exercise.row.exerciseRest != null) {
@@ -746,25 +751,39 @@ private fun SwitchWorkoutDialog(
 // "Set 1" / − reps + / Mark done
 @Composable
 private fun SetRow(setNumber: Int, reps: Int, done: Boolean, onMinus: () -> Unit, onPlus: () -> Unit, onToggleDone: () -> Unit) {
+    // [-] reps [+] [done] as one centred group (one "Sets" label sits above all the rows)
     Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text("Set $setNumber", style = MaterialTheme.typography.labelMedium)
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            FilledTonalButton(onClick = onMinus) { Text("−", fontSize = 22.sp) }
-            Text("$reps", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-            FilledTonalButton(onClick = onPlus) { Text("+", fontSize = 22.sp) }
+            RoundButton(onClick = onMinus, background = StepperGrey) { Text("−", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            Text("$reps", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 2.dp))
+            RoundButton(onClick = onPlus, background = StepperGrey) { Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            // Done: always an outlined circle; only the tick turns green once the set is done
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .border(2.dp, Color.Gray, CircleShape)
+                    .clickable(onClick = onToggleDone),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("✓", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if (done) Green else Color.Gray)
+            }
         }
-        CompactButton(
-            onClick = onToggleDone,
-            modifier = Modifier.padding(top = 6.dp),
-            colors = if (done) ButtonDefaults.buttonColors() else ButtonDefaults.filledTonalButtonColors(),
-        ) { Text(if (done) "✓ Done" else "Mark done", fontWeight = FontWeight.Bold) }
     }
+}
+
+@Composable
+private fun RoundButton(onClick: () -> Unit, background: Color, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.size(38.dp).clip(CircleShape).background(background).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
 }
 
 // Big keypad: digits plus one decimal point, e.g. 99.5. Empty = no weight.
@@ -909,6 +928,7 @@ private val Green = Color(0xFF10B981)
 private val Red = Color(0xFFEF4444)
 private val Orange = Color(0xFFF59E0B)
 private val SoftBlue = Color(0xFF93C5FD)
+private val StepperGrey = Color(0xFF34343A)
 
 @Composable
 private fun Message(text: String) {
