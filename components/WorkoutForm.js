@@ -2,11 +2,14 @@ import { useRef } from "react"
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { emptyExercise } from "../lib/workoutForm"
+import { useThemedStyles, useTheme } from "../lib/theme"
 
 // Shared by Create Workout and the edit mode of View Workout
 // focusExerciseId highlights one exercise; onFocusLayout(y) reports where it sits so the
 // screen can scroll to it
 export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLayout }) {
+  const styles = useThemedStyles(makeStyles)
+  const theme = useTheme().colors
   const sectionY = useRef(null)
   const focusY = useRef(null)
   const reportFocus = () => {
@@ -50,7 +53,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Workout Title</Text>
           <TextInput
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={theme.textFaint}
             style={styles.input}
             value={form.title}
             onChangeText={(value) => setField("title", value)}
@@ -61,7 +64,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
         <View style={styles.inputGroup}>
           <Text style={styles.label}>Total Time (minutes)</Text>
           <TextInput
-            placeholderTextColor="#9ca3af"
+            placeholderTextColor={theme.textFaint}
             style={styles.input}
             value={form.totalTime}
             onChangeText={(value) => setField("totalTime", value)}
@@ -75,7 +78,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
             <Text style={styles.label}>Set Rest (seconds)</Text>
             <Text style={styles.sublabel}>Rest between individual sets</Text>
             <TextInput
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={theme.textFaint}
               style={styles.input}
               value={form.setRest}
               onChangeText={(value) => setField("setRest", value)}
@@ -87,7 +90,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
             <Text style={styles.label}>Exercise Rest (seconds)</Text>
             <Text style={styles.sublabel}>Rest between different exercises</Text>
             <TextInput
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={theme.textFaint}
               style={styles.input}
               value={form.exerciseRest}
               onChangeText={(value) => setField("exerciseRest", value)}
@@ -129,13 +132,13 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
               <Text style={styles.exerciseNumber}>Exercise {index + 1}</Text>
               <View style={styles.exerciseActions}>
                 <TouchableOpacity onPress={() => moveExercise(index, -1)} style={styles.iconButton}>
-                  <Ionicons name="arrow-up" size={18} color={index === 0 ? "#d1d5db" : "#6b7280"} />
+                  <Ionicons name="arrow-up" size={18} color={index === 0 ? theme.inputBorder : theme.textMuted} />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => moveExercise(index, 1)} style={styles.iconButton}>
                   <Ionicons
                     name="arrow-down"
                     size={18}
-                    color={index === form.exercises.length - 1 ? "#d1d5db" : "#6b7280"}
+                    color={index === form.exercises.length - 1 ? theme.inputBorder : theme.textMuted}
                   />
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => removeExercise(exercise.id)} style={styles.iconButton}>
@@ -147,7 +150,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Exercise Name</Text>
               <TextInput
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={theme.textFaint}
                 style={styles.input}
                 value={exercise.name}
                 onChangeText={(value) => updateExercise(exercise.id, "name", value)}
@@ -159,7 +162,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
               <View style={[styles.inputGroup, styles.thirdWidth]}>
                 <Text style={styles.label}>Sets</Text>
                 <TextInput
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={theme.textFaint}
                   style={styles.input}
                   value={exercise.sets}
                   onChangeText={(value) => updateExercise(exercise.id, "sets", value)}
@@ -169,7 +172,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
               <View style={[styles.inputGroup, styles.thirdWidth]}>
                 <Text style={styles.label}>Reps</Text>
                 <TextInput
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={theme.textFaint}
                   style={styles.input}
                   value={exercise.reps}
                   onChangeText={(value) => updateExercise(exercise.id, "reps", value)}
@@ -179,7 +182,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
               <View style={[styles.inputGroup, styles.thirdWidth]}>
                 <Text style={styles.label}>Weight (kg)</Text>
                 <TextInput
-                  placeholderTextColor="#9ca3af"
+                  placeholderTextColor={theme.textFaint}
                   style={styles.input}
                   value={exercise.weight}
                   onChangeText={(value) => updateExercise(exercise.id, "weight", value)}
@@ -192,7 +195,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Machine settings</Text>
               <TextInput
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={theme.textFaint}
                 style={styles.input}
                 value={exercise.settings}
                 onChangeText={(value) => updateExercise(exercise.id, "settings", value)}
@@ -203,7 +206,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Notes</Text>
               <TextInput
-                placeholderTextColor="#9ca3af"
+                placeholderTextColor={theme.textFaint}
                 style={[styles.input, styles.multiline]}
                 value={exercise.notes}
                 onChangeText={(value) => updateExercise(exercise.id, "notes", value)}
@@ -217,7 +220,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
               {exercise.videos.map((url, videoIndex) => (
                 <View key={videoIndex} style={styles.videoRow}>
                   <TextInput
-                    placeholderTextColor="#9ca3af"
+                    placeholderTextColor={theme.textFaint}
                     style={[styles.input, styles.videoInput]}
                     value={url}
                     onChangeText={(value) => updateVideo(exercise, videoIndex, value)}
@@ -255,14 +258,14 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#111827",
+    color: c.text,
     marginBottom: 16,
   },
   sectionHeader: {
@@ -277,20 +280,20 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#374151",
+    color: c.textSecondary,
     marginBottom: 6,
   },
   sublabel: {
     fontSize: 12,
-    color: "#6b7280",
+    color: c.textMuted,
     marginBottom: 6,
     fontStyle: "italic",
   },
   input: {
-    backgroundColor: "#fff",
-    color: "#111827",
+    backgroundColor: c.input,
+    color: c.text,
     borderWidth: 1,
-    borderColor: "#d1d5db",
+    borderColor: c.inputBorder,
     borderRadius: 8,
     padding: 12,
     fontSize: 16,
@@ -312,13 +315,13 @@ const styles = StyleSheet.create({
   addExerciseButton: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#eff6ff",
+    backgroundColor: c.infoBg,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,
   },
   addExerciseText: {
-    color: "#2563eb",
+    color: c.primary,
     fontWeight: "500",
     marginLeft: 4,
   },
@@ -327,7 +330,7 @@ const styles = StyleSheet.create({
     borderColor: "#2563eb",
   },
   exerciseCard: {
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -346,7 +349,7 @@ const styles = StyleSheet.create({
   exerciseNumber: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#2563eb",
+    color: c.primary,
   },
   exerciseActions: {
     flexDirection: "row",
@@ -368,7 +371,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    backgroundColor: "#fef2f2",
+    backgroundColor: c.dangerBg,
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 8,

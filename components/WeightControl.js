@@ -2,10 +2,13 @@ import { useState } from "react"
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { formatWeight } from "../lib/workoutForm"
+import { useThemedStyles, useTheme } from "../lib/theme"
 
 // Weight with an edit button: tap, type the new number (decimals ok, blank = no weight), confirm.
 // When `increaseSuggested` is set, a reminder to go heavier is shown; tapping it opens the editor too.
 export default function WeightControl({ weight, increaseSuggested, onChange }) {
+  const styles = useThemedStyles(makeStyles)
+  const theme = useTheme().colors
   const [editing, setEditing] = useState(false)
   const [text, setText] = useState("")
 
@@ -46,7 +49,7 @@ export default function WeightControl({ weight, increaseSuggested, onChange }) {
               onSubmitEditing={save}
               keyboardType="decimal-pad"
               placeholder="kg"
-              placeholderTextColor="#9ca3af"
+              placeholderTextColor={theme.textFaint}
               autoFocus
               selectTextOnFocus
             />
@@ -55,7 +58,7 @@ export default function WeightControl({ weight, increaseSuggested, onChange }) {
               <Ionicons name="checkmark" size={20} color="#fff" />
             </TouchableOpacity>
             <TouchableOpacity style={styles.button} onPress={() => setEditing(false)}>
-              <Ionicons name="close" size={20} color="#6b7280" />
+              <Ionicons name="close" size={20} color={theme.textMuted} />
             </TouchableOpacity>
           </>
         ) : (
@@ -71,14 +74,14 @@ export default function WeightControl({ weight, increaseSuggested, onChange }) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   wrapper: {
     marginBottom: 12,
   },
   increaseBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fef3c7",
+    backgroundColor: c.warningBg,
     borderColor: "#f59e0b",
     borderWidth: 1,
     borderRadius: 12,
@@ -89,13 +92,13 @@ const styles = StyleSheet.create({
   increaseText: {
     flex: 1,
     fontSize: 13,
-    color: "#92400e",
+    color: c.warningText,
     fontWeight: "600",
   },
   container: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f9fafb",
+    backgroundColor: c.background,
     borderRadius: 12,
     paddingVertical: 8,
     paddingHorizontal: 12,
@@ -104,19 +107,19 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: "600",
-    color: "#374151",
+    color: c.textSecondary,
     flex: 1,
   },
   value: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
+    color: c.text,
   },
   input: {
     fontSize: 20,
     fontWeight: "700",
-    color: "#111827",
-    backgroundColor: "#fff",
+    color: c.text,
+    backgroundColor: c.input,
     borderWidth: 1,
     borderColor: "#2563eb",
     borderRadius: 8,
@@ -127,15 +130,15 @@ const styles = StyleSheet.create({
   },
   unit: {
     fontSize: 14,
-    color: "#6b7280",
+    color: c.textMuted,
   },
   button: {
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: c.border,
     justifyContent: "center",
     alignItems: "center",
   },

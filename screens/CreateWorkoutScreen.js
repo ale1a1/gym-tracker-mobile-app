@@ -4,8 +4,10 @@ import { useWorkout } from "../context/WorkoutContext"
 import WorkoutForm from "../components/WorkoutForm"
 import KeyboardSafeView from "../components/KeyboardSafeView"
 import { emptyWorkoutForm, emptyExercise, formToWorkout } from "../lib/workoutForm"
+import { useThemedStyles } from "../lib/theme"
 
 export default function CreateWorkoutScreen({ navigation }) {
+  const styles = useThemedStyles(makeStyles)
   const { addWorkout } = useWorkout()
   const [form, setForm] = useState(() => ({ ...emptyWorkoutForm(), exercises: [emptyExercise()] }))
 
@@ -32,10 +34,10 @@ export default function CreateWorkoutScreen({ navigation }) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: c.background,
     padding: 16,
   },
   saveButton: {

@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal, Linking } from "react-
 import { WebView } from "react-native-webview"
 import { Ionicons } from "@expo/vector-icons"
 import { getYouTubeId, getYouTubeEmbedHtml } from "../lib/youtube"
+import { useThemedStyles } from "../lib/theme"
 
 // One video opens straight in the player; several open a list first
 export default function VideoButton({ videos }) {
+  const styles = useThemedStyles(makeStyles)
   const [showList, setShowList] = useState(false)
   const [playingUrl, setPlayingUrl] = useState(null)
 
@@ -85,12 +87,12 @@ export default function VideoButton({ videos }) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   button: {
     flexDirection: "row",
     alignItems: "center",
     alignSelf: "flex-start",
-    backgroundColor: "#fef2f2",
+    backgroundColor: c.dangerBg,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
@@ -109,7 +111,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   listContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderRadius: 16,
     padding: 20,
     width: "100%",
@@ -118,7 +120,7 @@ const styles = StyleSheet.create({
   listTitle: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: c.text,
     marginBottom: 12,
     textAlign: "center",
   },
@@ -127,17 +129,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: c.border,
   },
   listItemText: {
     fontSize: 16,
-    color: "#111827",
+    color: c.text,
     marginLeft: 10,
     flex: 1,
   },
   closeListButton: {
     marginTop: 16,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: c.subtle,
     paddingVertical: 12,
     borderRadius: 10,
     alignItems: "center",
@@ -145,7 +147,7 @@ const styles = StyleSheet.create({
   closeListText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#374151",
+    color: c.textSecondary,
   },
   playerContainer: {
     width: "100%",

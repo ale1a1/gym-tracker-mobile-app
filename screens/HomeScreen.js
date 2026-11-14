@@ -2,8 +2,11 @@ import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
 import AccountBar from "../components/AccountBar"
+import ThemeToggle from "../components/ThemeToggle"
+import { useThemedStyles } from "../lib/theme"
 
 export default function HomeScreen({ navigation }) {
+  const styles = useThemedStyles(makeStyles)
   const {
     workouts,
     activeWorkout,
@@ -108,14 +111,16 @@ export default function HomeScreen({ navigation }) {
         <Text style={[styles.tileTitle, styles.createTileTitle]}>Create Workout</Text>
         <Text style={[styles.tileSubtitle, styles.createTileSubtitle]}>Exercises, weights, machine settings, videos</Text>
       </TouchableOpacity>
+
+      <ThemeToggle />
     </View>
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: c.background,
     padding: 16,
     gap: 16,
   },
@@ -135,9 +140,9 @@ const styles = StyleSheet.create({
     backgroundColor: "#2563eb",
   },
   createTile: {
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderWidth: 2,
-    borderColor: "#bfdbfe",
+    borderColor: c.infoBorder,
   },
   tileTitle: {
     fontSize: 26,
@@ -146,7 +151,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   createTileTitle: {
-    color: "#111827",
+    color: c.text,
   },
   tileSubtitle: {
     fontSize: 14,
@@ -155,17 +160,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   createTileSubtitle: {
-    color: "#6b7280",
+    color: c.textMuted,
   },
   activeBanner: {
-    backgroundColor: "#f0fdf4",
+    backgroundColor: c.successBg,
     borderColor: "#10b981",
     borderWidth: 2,
     borderRadius: 16,
     padding: 14,
   },
   pausedBanner: {
-    backgroundColor: "#fef3c7",
+    backgroundColor: c.warningBg,
     borderColor: "#f59e0b",
   },
   activeBannerTop: {
@@ -176,7 +181,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 17,
     fontWeight: "700",
-    color: "#111827",
+    color: c.text,
     marginLeft: 8,
   },
   activeBannerTime: {
@@ -190,7 +195,7 @@ const styles = StyleSheet.create({
   },
   restText: {
     fontSize: 13,
-    color: "#b45309",
+    color: c.warningText,
     fontWeight: "600",
     marginTop: 6,
     fontFamily: "monospace",

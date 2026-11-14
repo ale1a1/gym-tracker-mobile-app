@@ -1,9 +1,12 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
+import { useThemedStyles, useTheme } from "../lib/theme"
 
 // "Do Workout": every saved workout as a card, with start / pause / resume / cancel
 export default function WorkoutListScreen({ navigation }) {
+  const styles = useThemedStyles(makeStyles)
+  const theme = useTheme().colors
   const {
     workouts,
     deleteWorkout,
@@ -144,11 +147,11 @@ export default function WorkoutListScreen({ navigation }) {
 
         <View style={styles.workoutInfo}>
           <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={16} color="#6b7280" />
+            <Ionicons name="time-outline" size={16} color={theme.textMuted} />
             <Text style={styles.infoText}>Total: {formatTime(item.totalTime)}</Text>
           </View>
           <View style={styles.infoItem}>
-            <Ionicons name="barbell-outline" size={16} color="#6b7280" />
+            <Ionicons name="barbell-outline" size={16} color={theme.textMuted} />
             <Text style={styles.infoText}>{item.exercises.length} exercises</Text>
           </View>
         </View>
@@ -196,7 +199,7 @@ export default function WorkoutListScreen({ navigation }) {
       <View style={styles.content}>
         {workouts.length === 0 ? (
           <View style={styles.emptyState}>
-            <Ionicons name="barbell-outline" size={64} color="#9ca3af" />
+            <Ionicons name="barbell-outline" size={64} color={theme.textFaint} />
             <Text style={styles.emptyStateText}>No workouts yet</Text>
             <Text style={styles.emptyStateSubtext}>Create your first workout to get started!</Text>
             <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate("CreateWorkout")}>
@@ -217,10 +220,10 @@ export default function WorkoutListScreen({ navigation }) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: c.background,
   },
   content: {
     flex: 1,
@@ -245,7 +248,7 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   workoutCard: {
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -258,12 +261,12 @@ const styles = StyleSheet.create({
   activeWorkoutCard: {
     borderColor: "#10b981",
     borderWidth: 2,
-    backgroundColor: "#f0fdf4",
+    backgroundColor: c.successBg,
   },
   pausedWorkoutCard: {
     borderColor: "#f59e0b",
     borderWidth: 2,
-    backgroundColor: "#fef3c7",
+    backgroundColor: c.warningBg,
   },
   workoutHeader: {
     flexDirection: "row",
@@ -274,12 +277,12 @@ const styles = StyleSheet.create({
   workoutTitle: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#111827",
+    color: c.text,
     flex: 1,
     // Keep workout titles left-aligned - no textAlign: "center"
   },
   activeIndicator: {
-    backgroundColor: "#dcfce7",
+    backgroundColor: c.successBg,
     paddingHorizontal: 8,
     paddingVertical: 6,
     borderRadius: 12,
@@ -287,7 +290,7 @@ const styles = StyleSheet.create({
     minWidth: 120,
   },
   pausedIndicator: {
-    backgroundColor: "#fed7aa",
+    backgroundColor: c.warningBg,
   },
   activeMainInfo: {
     flexDirection: "row",
@@ -318,7 +321,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#fef3c7",
+    backgroundColor: c.warningBg,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 8,
@@ -341,12 +344,12 @@ const styles = StyleSheet.create({
   },
   infoText: {
     fontSize: 14,
-    color: "#6b7280",
+    color: c.textMuted,
     marginLeft: 6,
   },
   lastDateText: {
     fontSize: 12,
-    color: "#007AFF",
+    color: c.primary,
     marginBottom: 10,
     fontStyle: "italic",
   },
@@ -424,12 +427,12 @@ const styles = StyleSheet.create({
   emptyStateText: {
     fontSize: 20,
     fontWeight: "600",
-    color: "#6b7280",
+    color: c.textMuted,
     marginTop: 16,
   },
   emptyStateSubtext: {
     fontSize: 16,
-    color: "#9ca3af",
+    color: c.textFaint,
     marginTop: 8,
     textAlign: "center",
   },

@@ -6,8 +6,11 @@ import WorkoutForm from '../components/WorkoutForm'
 import KeyboardSafeView from '../components/KeyboardSafeView'
 import VideoButton from '../components/VideoButton'
 import { workoutToForm, formToWorkout, formatWeight } from '../lib/workoutForm'
+import { useThemedStyles, useTheme } from "../lib/theme"
 
 export default function ViewWorkoutScreen({ route, navigation }) {
+  const styles = useThemedStyles(makeStyles)
+  const theme = useTheme().colors
   const { workouts, workoutHistory, updateWorkout, deleteWorkout, activeWorkout, updateActiveWorkout } = useWorkout()
 
   // Always show the saved workout, not the copy passed in (which may be the in-progress one)
@@ -208,17 +211,17 @@ export default function ViewWorkoutScreen({ route, navigation }) {
 
         <View style={styles.workoutInfo}>
           <View style={styles.infoItem}>
-            <Ionicons name="time-outline" size={16} color="#6b7280" />
+            <Ionicons name="time-outline" size={16} color={theme.textMuted} />
             <Text style={styles.infoLabel}>Total Time:</Text>
             <Text style={styles.infoValue}>{formatTime(workout.totalTime)}</Text>
           </View>
           <View style={styles.infoItem}>
-            <Ionicons name="pause-circle-outline" size={16} color="#6b7280" />
+            <Ionicons name="pause-circle-outline" size={16} color={theme.textMuted} />
             <Text style={styles.infoLabel}>Set Rest:</Text>
             <Text style={styles.infoValue}>{workout.setRest}s</Text>
           </View>
           <View style={styles.infoItem}>
-            <Ionicons name="pause-circle" size={16} color="#6b7280" />
+            <Ionicons name="pause-circle" size={16} color={theme.textMuted} />
             <Text style={styles.infoLabel}>Exercise Rest:</Text>
             <Text style={styles.infoValue}>{workout.exerciseRest}s</Text>
           </View>
@@ -235,7 +238,7 @@ export default function ViewWorkoutScreen({ route, navigation }) {
             <View style={styles.exerciseHeader}>
               <Text style={styles.exerciseNumber}>{index + 1}</Text>
               <Text style={styles.exerciseName}>{exercise.name}</Text>
-              <Ionicons name="create-outline" size={18} color="#9ca3af" />
+              <Ionicons name="create-outline" size={18} color={theme.textFaint} />
             </View>
 
             <Text style={styles.exerciseTarget}>
@@ -246,13 +249,13 @@ export default function ViewWorkoutScreen({ route, navigation }) {
 
             {!!exercise.settings && (
               <View style={styles.detailRow}>
-                <Ionicons name="settings-outline" size={14} color="#6b7280" />
+                <Ionicons name="settings-outline" size={14} color={theme.textMuted} />
                 <Text style={styles.detailText}>{exercise.settings}</Text>
               </View>
             )}
             {!!exercise.notes && (
               <View style={styles.detailRow}>
-                <Ionicons name="document-text-outline" size={14} color="#6b7280" />
+                <Ionicons name="document-text-outline" size={14} color={theme.textMuted} />
                 <Text style={styles.detailText}>{exercise.notes}</Text>
               </View>
             )}
@@ -266,7 +269,7 @@ export default function ViewWorkoutScreen({ route, navigation }) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   headerActions: {
     flexDirection: 'row',
     gap: 8,
@@ -277,11 +280,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: c.background,
     padding: 16,
   },
   workoutCard: {
-    backgroundColor: '#fff',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 20,
@@ -294,7 +297,7 @@ const styles = StyleSheet.create({
   workoutTitle: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#111827',
+    color: c.text,
     textAlign: 'center',
     marginBottom: 16,
   },
@@ -307,14 +310,14 @@ const styles = StyleSheet.create({
   },
   infoLabel: {
     fontSize: 14,
-    color: '#6b7280',
+    color: c.textMuted,
     marginLeft: 8,
     marginRight: 8,
   },
   infoValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#111827',
+    color: c.text,
   },
   exercisesSection: {
     marginBottom: 40,
@@ -322,11 +325,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#111827',
+    color: c.text,
     marginBottom: 12,
   },
   exerciseCard: {
-    backgroundColor: '#fff',
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
@@ -356,17 +359,17 @@ const styles = StyleSheet.create({
   exerciseName: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
+    color: c.text,
     flex: 1,
   },
   lastReps: {
-    color: '#374151',
+    color: c.textSecondary,
     fontWeight: '700',
   },
   exerciseTarget: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#2563eb',
+    color: c.primary,
     marginBottom: 8,
   },
   detailRow: {
@@ -376,7 +379,7 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: 14,
-    color: '#374151',
+    color: c.textSecondary,
     marginLeft: 6,
     flex: 1,
   },

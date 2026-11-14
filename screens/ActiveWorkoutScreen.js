@@ -8,8 +8,11 @@ import WeightControl from "../components/WeightControl"
 import KeyboardSafeView from "../components/KeyboardSafeView"
 import VideoButton from "../components/VideoButton"
 import { formatWeight, hitTarget } from "../lib/workoutForm"
+import { useThemedStyles, useTheme } from "../lib/theme"
 
 export default function ActiveWorkoutScreen({ route, navigation }) {
+  const styles = useThemedStyles(makeStyles)
+  const theme = useTheme().colors
   const { workout } = route.params || {}
   const {
     updateWorkout,
@@ -375,7 +378,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                   <View style={styles.exerciseMeta}>
                     {!!exercise.settings && (
                       <View style={styles.settingsChip}>
-                        <Ionicons name="settings-outline" size={14} color="#374151" />
+                        <Ionicons name="settings-outline" size={14} color={theme.textSecondary} />
                         <Text style={styles.settingsText}>{exercise.settings}</Text>
                       </View>
                     )}
@@ -496,16 +499,16 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f9fafb",
+    backgroundColor: c.background,
   },
   errorContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#f9fafb",
+    backgroundColor: c.background,
     padding: 20,
   },
   errorText: {
@@ -533,27 +536,27 @@ const styles = StyleSheet.create({
   settingsChip: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f3f4f6",
+    backgroundColor: c.subtle,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
   },
   settingsText: {
     fontSize: 13,
-    color: "#374151",
+    color: c.textSecondary,
     marginLeft: 4,
     fontWeight: "500",
   },
   notesText: {
     fontSize: 13,
-    color: "#6b7280",
+    color: c.textMuted,
     fontStyle: "italic",
     marginBottom: 8,
   },
   targetHitBanner: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#d1fae5",
+    backgroundColor: c.successBg,
     borderRadius: 8,
     padding: 10,
     marginTop: 12,
@@ -562,7 +565,7 @@ const styles = StyleSheet.create({
   targetHitText: {
     flex: 1,
     fontSize: 13,
-    color: "#047857",
+    color: c.successText,
     fontWeight: "600",
   },
   timerHeader: {
@@ -658,7 +661,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   restInactiveText: {
-    color: "#9ca3af",
+    color: c.textFaint,
     fontSize: 14,
     fontWeight: "500",
   },
@@ -667,7 +670,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   exerciseCard: {
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderRadius: 12,
     padding: 16,
     marginBottom: 16,
@@ -678,7 +681,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   completedCard: {
-    backgroundColor: "#f0f9ff",
+    backgroundColor: c.infoBg,
     borderColor: "#10b981",
     borderWidth: 2,
   },
@@ -702,7 +705,7 @@ const styles = StyleSheet.create({
   exerciseName: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#111827",
+    color: c.text,
     flex: 1,
   },
   setsContainer: {
@@ -710,7 +713,7 @@ const styles = StyleSheet.create({
   },
   setsLabel: {
     fontSize: 14,
-    color: "#6b7280",
+    color: c.textMuted,
     marginBottom: 12,
   },
   setsGrid: {
@@ -722,7 +725,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   setItem: {
-    backgroundColor: "#f9fafb",
+    backgroundColor: c.background,
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
@@ -731,13 +734,13 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   completedSetItem: {
-    backgroundColor: "#f0fdf4",
+    backgroundColor: c.successBg,
     borderColor: "#10b981",
     borderWidth: 2,
   },
   setNumber: {
     fontSize: 14,
-    color: "#6b7280",
+    color: c.textMuted,
     marginBottom: 12,
     fontWeight: "600",
   },
@@ -750,22 +753,22 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: c.border,
   },
   repsValue: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#111827",
+    color: c.text,
     marginHorizontal: 16,
     minWidth: 30,
     textAlign: "center",
   },
   setCompleteButton: {
-    backgroundColor: "#f0fdf4",
+    backgroundColor: c.successBg,
     padding: 10,
     borderRadius: 20,
     borderWidth: 2,
@@ -782,24 +785,24 @@ const styles = StyleSheet.create({
   lastPerformance: {
     marginTop: 12,
     padding: 8,
-    backgroundColor: "#f0f8ff",
+    backgroundColor: c.infoBg,
     borderRadius: 6,
   },
   lastPerformanceText: {
     fontSize: 12,
-    color: "#2563eb",
+    color: c.primary,
     fontWeight: "500",
     textAlign: "center",
   },
   completedSummary: {
     marginTop: 12,
     padding: 8,
-    backgroundColor: "#f0fdf4",
+    backgroundColor: c.successBg,
     borderRadius: 6,
   },
   completedText: {
     fontSize: 14,
-    color: "#374151",
+    color: c.textSecondary,
     fontWeight: "500",
     textAlign: "center",
   },
@@ -812,7 +815,7 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   modalContainer: {
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderRadius: 20,
     padding: 24,
     width: "100%",
@@ -830,7 +833,7 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#111827",
+    color: c.text,
     marginTop: 12,
     marginBottom: 4,
   },
@@ -844,7 +847,7 @@ const styles = StyleSheet.create({
   },
   modalText: {
     fontSize: 16,
-    color: "#374151",
+    color: c.textSecondary,
     textAlign: "center",
     lineHeight: 24,
     marginBottom: 8,
@@ -855,7 +858,7 @@ const styles = StyleSheet.create({
   },
   modalContinueButton: {
     flex: 1,
-    backgroundColor: "#f3f4f6",
+    backgroundColor: c.subtle,
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
@@ -864,7 +867,7 @@ const styles = StyleSheet.create({
   modalContinueText: {
     fontSize: 16,
     fontWeight: "600",
-    color: "#374151",
+    color: c.textSecondary,
   },
   modalFinishButton: {
     flex: 1,

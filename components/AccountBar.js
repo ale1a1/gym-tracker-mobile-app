@@ -3,9 +3,11 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { Ionicons } from "@expo/vector-icons"
 import { signInWithGoogle, useAuthUser } from "../lib/auth"
 import { useWorkout } from "../context/WorkoutContext"
+import { useThemedStyles } from "../lib/theme"
 
 // Shows who is signed in, or a Google sign-in button while the account is still anonymous
 export default function AccountBar() {
+  const styles = useThemedStyles(makeStyles)
   const user = useAuthUser()
   const { syncWithCloud } = useWorkout()
   const [busy, setBusy] = useState(false)
@@ -43,29 +45,29 @@ export default function AccountBar() {
   )
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (c) => StyleSheet.create({
   bar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
+    backgroundColor: c.card,
     borderRadius: 12,
     paddingVertical: 10,
     paddingHorizontal: 14,
     gap: 8,
     borderWidth: 1,
-    borderColor: "#e5e7eb",
+    borderColor: c.border,
   },
   signInBar: {
-    borderColor: "#bfdbfe",
-    backgroundColor: "#eff6ff",
+    borderColor: c.infoBorder,
+    backgroundColor: c.infoBg,
   },
   text: {
     flex: 1,
     fontSize: 14,
-    color: "#374151",
+    color: c.textSecondary,
   },
   signInText: {
-    color: "#2563eb",
+    color: c.primary,
     fontWeight: "600",
   },
 })
