@@ -316,9 +316,7 @@ private fun ActiveWorkoutScreen(
     val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
     var confirmEnd by remember { mutableStateOf(false) }
     // Every set of every exercise ticked: show the congratulations screen (once, until dismissed)
-    val allDone = live.exercises.isNotEmpty() && live.exercises.all { it.allDone }
-    var completionDismissed by remember { mutableStateOf(false) }
-    LaunchedEffect(allDone) { if (!allDone) completionDismissed = false }
+    val setsLeft = live.exercises.sumOf { ex -> ex.done.count { !it } }
 
     // Full exercise name shown in a small popup when a (truncated) title is tapped
     var fullTitle by remember { mutableStateOf<String?>(null) }
@@ -482,11 +480,12 @@ private fun ActiveWorkoutScreen(
             )
         }
 
-        if (allDone && !completionDismissed) {
+        if (state.finishPrompt) {
             WorkoutCompleteScreen(
                 title = live.workout.title,
+                setsLeft = setsLeft,
                 onFinish = { viewModel.finishWorkout() },
-                onNotYet = { completionDismissed = true },
+                onNotYet = { viewModel.dismissFinishPrompt() },
             )
         }
 
@@ -523,7 +522,7 @@ private fun ActiveWorkoutScreen(
 
 // All sets done: congratulations; Finish stops the timer and saves the workout
 @Composable
-private fun WorkoutCompleteScreen(title: String, onFinish: () -> Unit, onNotYet: () -> Unit) {
+private fun WorkoutCompleteScreen(title: String, setsLeft: Int, onFinish: () -> Unit, onNotYet: () -> Unit) {
     Box(
         modifier = Modifier.fillMaxSize().background(Green),
         contentAlignment = Alignment.Center,
@@ -539,6 +538,14 @@ private fun WorkoutCompleteScreen(title: String, onFinish: () -> Unit, onNotYet:
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 24.dp),
             )
+            if (setsLeft > 0) {
+                Text(
+                    if (setsLeft == 1) "1 set not ticked" else "$setsLeft sets not ticked",
+                    fontSize = 12.sp,
+                    color = Color(0xFFFFF3C4),
+                    modifier = Modifier.padding(top = 2.dp),
+                )
+            }
             Row(
                 modifier = Modifier.padding(top = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -894,9 +901,13 @@ private fun RoundButton(onClick: () -> Unit, background: Color, content: @Compos
 @Composable
 private fun WeightKeypad(initial: Double?, onDone: (Double?) -> Unit) {
     var text by remember { mutableStateOf(initial?.let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() } ?: "") }
+    // The first key typed replaces the current weight (like a calculator); after that it appends
+    var fresh by remember { mutableStateOf(true) }
     val listState = rememberScalingLazyListState()
 
     fun press(key: String) {
+        if (fresh && key != "⌫") text = ""
+        fresh = false
         text = when (key) {
             "⌫" -> text.dropLast(1)
             "." -> if (text.contains(".")) text else (if (text.isEmpty()) "0." else "$text.")

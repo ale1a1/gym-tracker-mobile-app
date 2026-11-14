@@ -35,6 +35,9 @@ data class UiState(
     val restLabel: String = "",
     // Set when a rest runs out with the app open: shows the "Rest is over" flash
     val restOverAtMillis: Long? = null,
+    // The workout looks finished (last set of the last exercise ticked, or every set ticked):
+    // show the congratulations screen
+    val finishPrompt: Boolean = false,
 )
 
 class WorkoutViewModel(application: Application) : AndroidViewModel(application) {
@@ -204,6 +207,9 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         var startRest = false
         var exerciseFinished = false
         var exerciseRow: ExerciseRow? = null
+        val isLastSetOfLastExercise = _state.value.live?.let { l ->
+            exerciseIndex == l.exercises.lastIndex && setIndex == l.exercises[exerciseIndex].done.lastIndex
+        } ?: false
         val live = updateLive { live ->
             live.withExercise(exerciseIndex) { ex ->
                 val nowDone = !ex.done[setIndex]
@@ -215,8 +221,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             }
         } ?: return
         save(live)
-        val workoutComplete = live.exercises.all { it.allDone }
-        if (startRest && !workoutComplete) {
+        // Done when every set is ticked, or when the very last set of the last exercise is ticked
+        // (even if a set was left unticked earlier): no rest, show the congratulations instead
+        val workoutComplete = startRest && (live.exercises.all { it.allDone } || isLastSetOfLastExercise)
+        if (workoutComplete) {
+            _state.update { it.copy(finishPrompt = true) }
+        } else if (startRest) {
             // The exercise's own rest wins over the workout's general rule
             if (exerciseFinished) startRest(exerciseRow?.exerciseRest ?: live.workout.exerciseRest, "Exercise rest")
             else startRest(exerciseRow?.setRest ?: live.workout.setRest, "Set rest")
@@ -241,6 +251,8 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun clearRestOver() = _state.update { it.copy(restOverAtMillis = null) }
+
+    fun dismissFinishPrompt() = _state.update { it.copy(finishPrompt = false) }
 
     fun skipRest() {
         restJob?.cancel()
@@ -268,6 +280,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     private suspend fun endCurrent(mode: EndMode) {
         val live = _state.value.live ?: return
         skipRest()
+        _state.update { it.copy(finishPrompt = false) }
         val now = System.currentTimeMillis()
         saveLock.withLock {
             runCatching {
