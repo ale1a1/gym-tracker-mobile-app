@@ -1,8 +1,20 @@
 "use client"
 
-import { createContext, useContext, useReducer, useEffect } from "react"
+import { createContext, useContext, useReducer, useEffect, useRef } from "react"
 import AsyncStorage from "@react-native-async-storage/async-storage"
-import { AppState } from "react-native"
+import { AppState, Vibration } from "react-native"
+import { setupNotifications, scheduleRestEndNotification, cancelRestNotification } from "../lib/notifications"
+import { hitTarget, newId } from "../lib/workoutForm"
+import {
+  flushQueue,
+  pullFromCloud,
+  migrateLocalDataOnce,
+  queueWorkoutUpsert,
+  queueWorkoutDelete,
+  queueSession,
+  queueSessionDelete,
+} from "../lib/sync"
+import { showStopwatch, showCountdown, showStatic, hideLiveTimer } from "../modules/live-timer"
 
 const WorkoutContext = createContext()
 
@@ -67,13 +79,20 @@ function workoutReducer(state, action) {
 
 export function WorkoutProvider({ children }) {
   const [state, dispatch] = useReducer(workoutReducer, initialState)
+  // Id of the scheduled "rest is over" notification, so it can be cancelled on skip/finish
+  const restNotificationId = useRef(null)
+
+  useEffect(() => {
+    setupNotifications()
+  }, [])
 
   // Handle app state changes (foreground/background)
   useEffect(() => {
     const handleAppStateChange = (nextAppState) => {
       if (nextAppState === "active") {
-        // App came to foreground - recalculate timers
+        // App came to foreground - recalculate timers and catch up with the cloud
         recalculateTimers()
+        syncWithCloud()
       } else if (nextAppState === "background" || nextAppState === "inactive") {
         // App going to background - save current state
         saveTimerStates()
@@ -110,7 +129,8 @@ export function WorkoutProvider({ children }) {
       // Recalculate rest timer
       const restData = await AsyncStorage.getItem("restTimerData")
       if (restData) {
-        const { isResting, startTime, duration, type } = JSON.parse(restData)
+        const { isResting, startTime, duration, type, notificationId } = JSON.parse(restData)
+        restNotificationId.current = notificationId || null
         if (isResting && startTime && duration) {
           const elapsedSeconds = Math.floor((now - startTime) / 1000)
           const remainingSeconds = Math.max(0, duration - elapsedSeconds)
@@ -204,6 +224,8 @@ export function WorkoutProvider({ children }) {
             dispatch({ type: "SET_REST_TYPE", payload: "" })
             dispatch({ type: "SET_REST_START_TIME", payload: null })
             dispatch({ type: "SET_REST_DURATION", payload: null })
+            restNotificationId.current = null
+            Vibration.vibrate([0, 500, 250, 500, 250, 500])
             clearRestTimerData()
           } else {
             dispatch({ type: "SET_REST_TIMER", payload: remainingSeconds })
@@ -221,6 +243,39 @@ export function WorkoutProvider({ children }) {
     }
     return () => clearInterval(interval)
   }, [state.isResting, state.restTimer, state.restStartTime, state.restDuration])
+
+  // Live timer on the lock screen / status bar (APK only): rest countdown, workout stopwatch, or paused
+  useEffect(() => {
+    const workout = state.activeWorkout
+    if (!workout) {
+      hideLiveTimer()
+      return
+    }
+    if (!state.isWorkoutRunning) {
+      const mins = Math.floor(state.workoutTimer / 60)
+      const secs = state.workoutTimer % 60
+      showStatic(workout.title, `Paused at ${mins}:${secs.toString().padStart(2, "0")}`)
+      return
+    }
+    if (state.isResting && state.restStartTime && state.restDuration) {
+      showCountdown(
+        workout.title,
+        state.restType === "set" ? "Set rest" : "Exercise rest",
+        state.restStartTime + state.restDuration * 1000,
+      )
+    } else if (state.workoutStartTime) {
+      showStopwatch(workout.title, "Workout in progress", state.workoutStartTime)
+    }
+  }, [
+    state.activeWorkout?.id,
+    state.activeWorkout?.title,
+    state.isWorkoutRunning,
+    state.workoutStartTime,
+    state.isResting,
+    state.restStartTime,
+    state.restDuration,
+    state.restType,
+  ])
 
   useEffect(() => {
     loadWorkouts()
@@ -253,8 +308,34 @@ export function WorkoutProvider({ children }) {
 
       // Recalculate timers after loading basic data
       setTimeout(() => recalculateTimers(), 200)
+
+      // Local data is on screen; now upload pending changes and refresh from the cloud
+      const workouts = storedWorkouts ? JSON.parse(storedWorkouts) : []
+      const history = storedHistory ? JSON.parse(storedHistory) : []
+      await migrateLocalDataOnce(
+        Array.isArray(workouts) ? workouts : [],
+        Array.isArray(history) ? history : [],
+      )
+      syncWithCloud()
     } catch (error) {
       console.error("Error loading workouts:", error)
+    }
+  }
+
+  // Push queued changes, then pull the latest. Pull only when nothing is pending, so offline
+  // edits are never overwritten by older cloud data.
+  const syncWithCloud = async () => {
+    try {
+      const queueEmpty = await flushQueue()
+      if (!queueEmpty) return
+      const cloud = await pullFromCloud()
+      if (!cloud) return
+      dispatch({ type: "SET_WORKOUTS", payload: cloud.workouts })
+      dispatch({ type: "SET_WORKOUT_HISTORY", payload: cloud.history })
+      saveWorkouts(cloud.workouts)
+      saveWorkoutHistory(cloud.history)
+    } catch (error) {
+      console.warn("Cloud sync failed:", error)
     }
   }
 
@@ -337,10 +418,11 @@ export function WorkoutProvider({ children }) {
 
   const addWorkout = (workout) => {
     if (!workout || typeof workout !== "object") return
-    const newWorkout = { ...workout, id: Date.now().toString() }
+    const newWorkout = { ...workout, id: newId() }
     const updatedWorkouts = [...(state.workouts || []), newWorkout]
     dispatch({ type: "ADD_WORKOUT", payload: newWorkout })
     saveWorkouts(updatedWorkouts)
+    queueWorkoutUpsert(newWorkout).then(flushQueue)
   }
 
   const updateWorkout = (workout) => {
@@ -348,6 +430,7 @@ export function WorkoutProvider({ children }) {
     const updatedWorkouts = (state.workouts || []).map((w) => (w.id === workout.id ? workout : w))
     dispatch({ type: "UPDATE_WORKOUT", payload: workout })
     saveWorkouts(updatedWorkouts)
+    queueWorkoutUpsert(workout).then(flushQueue)
   }
 
   const deleteWorkout = (workoutId) => {
@@ -355,10 +438,14 @@ export function WorkoutProvider({ children }) {
     const updatedWorkouts = (state.workouts || []).filter((w) => w.id !== workoutId)
     dispatch({ type: "DELETE_WORKOUT", payload: workoutId })
     saveWorkouts(updatedWorkouts)
+    queueWorkoutDelete(workoutId).then(flushQueue)
   }
 
   const setActiveWorkout = async (workout) => {
     if (!workout) {
+      skipRest()
+      // Cancelled: remove the live session from the cloud too
+      if (state.activeWorkout?.sessionId) queueSessionDelete(state.activeWorkout.sessionId).then(flushQueue)
       dispatch({ type: "SET_ACTIVE_WORKOUT", payload: null })
       saveActiveWorkout(null)
       return
@@ -394,8 +481,16 @@ export function WorkoutProvider({ children }) {
             const targetSets = typeof ex.sets === "number" ? ex.sets : 3
             const targetReps = typeof ex.reps === "number" ? ex.reps : 10
 
+            const lastWeight = lastExercise ? (lastExercise.weight ?? null) : null
+            const currentWeight = ex.weight ?? null
+
             return {
               ...ex,
+              weight: currentWeight,
+              lastWeight,
+              // Last time every set hit the target at this same weight: time to go heavier
+              increaseSuggested:
+                currentWeight !== null && hitTarget(lastExercise) && lastWeight !== null && currentWeight <= lastWeight,
               completed:
                 lastExercise && Array.isArray(lastExercise.completed)
                   ? [...lastExercise.completed].slice(0, targetSets).concat(new Array(Math.max(0, targetSets - lastExercise.completed.length)).fill(0))
@@ -408,8 +503,17 @@ export function WorkoutProvider({ children }) {
         : [],
     }
 
+    // The live session exists in the cloud from the start, and is updated on every change
+    workoutWithPrefill.sessionId = newId()
+    workoutWithPrefill.startedAt = new Date().toISOString()
+
     dispatch({ type: "SET_ACTIVE_WORKOUT", payload: workoutWithPrefill })
     saveActiveWorkout(workoutWithPrefill)
+    pushLiveSession(workoutWithPrefill)
+  }
+
+  const pushLiveSession = (workout) => {
+    queueSession({ ...workout, originalId: workout.id, status: "in_progress" }).then(flushQueue)
   }
 
   const startWorkout = () => {
@@ -438,10 +542,16 @@ export function WorkoutProvider({ children }) {
 
     const workoutToSave = {
       ...completedWorkout,
+      sessionId: completedWorkout.sessionId || newId(),
+      status: "completed",
       completedAt: new Date().toISOString(),
       originalId: completedWorkout.id,
       duration: state.workoutTimer,
     }
+    queueSession(workoutToSave).then(flushQueue)
+
+    cancelRestNotification(restNotificationId.current)
+    restNotificationId.current = null
 
     const updatedHistory = [...(state.workoutHistory || []), workoutToSave]
     dispatch({ type: "SET_WORKOUT_HISTORY", payload: updatedHistory })
@@ -464,10 +574,16 @@ export function WorkoutProvider({ children }) {
     AsyncStorage.multiRemove(["workoutTimerData", "restTimerData"])
   }
 
+  // Every tick, reps change or weight change lands here and is pushed to the cloud right away
   const updateActiveWorkout = (workout) => {
     if (!workout || typeof workout !== "object") return
-    dispatch({ type: "SET_ACTIVE_WORKOUT", payload: workout })
-    saveActiveWorkout(workout)
+    // Workouts started before live sessions existed get one now
+    const live = workout.sessionId
+      ? workout
+      : { ...workout, sessionId: newId(), startedAt: new Date().toISOString() }
+    dispatch({ type: "SET_ACTIVE_WORKOUT", payload: live })
+    saveActiveWorkout(live)
+    pushLiveSession(live)
   }
 
   const setWorkoutTimer = (time) => {
@@ -482,9 +598,11 @@ export function WorkoutProvider({ children }) {
     }
   }
 
-  const startRest = (type, duration) => {
+  const startRest = async (type, duration) => {
     if (typeof duration === "number" && !isNaN(duration) && duration > 0) {
       const startTime = Date.now()
+      cancelRestNotification(restNotificationId.current)
+      restNotificationId.current = null
       dispatch({ type: "SET_REST_TIMER", payload: duration })
       dispatch({ type: "SET_REST_TYPE", payload: type || "" })
       dispatch({ type: "SET_RESTING", payload: true })
@@ -498,16 +616,54 @@ export function WorkoutProvider({ children }) {
         ["isResting", "true"],
         ["restType", type || ""],
       ])
+
+      // Alert with sound + vibration when the rest ends, even with the app closed or the phone locked
+      const notificationId = await scheduleRestEndNotification(duration, type)
+      restNotificationId.current = notificationId
+      if (notificationId) {
+        AsyncStorage.setItem(
+          "restTimerData",
+          JSON.stringify({ isResting: true, startTime, duration, type, notificationId }),
+        )
+      }
     }
   }
 
   const skipRest = () => {
+    cancelRestNotification(restNotificationId.current)
+    restNotificationId.current = null
     dispatch({ type: "SET_RESTING", payload: false })
     dispatch({ type: "SET_REST_TIMER", payload: 0 })
     dispatch({ type: "SET_REST_TYPE", payload: "" })
     dispatch({ type: "SET_REST_START_TIME", payload: null })
     dispatch({ type: "SET_REST_DURATION", payload: null })
     clearRestTimerData()
+  }
+
+  // Changing the weight during a workout also updates the saved workout, so next time starts from it
+  const updateExerciseWeight = (exerciseId, weight) => {
+    if (state.activeWorkout) {
+      updateActiveWorkout({
+        ...state.activeWorkout,
+        exercises: state.activeWorkout.exercises.map((ex) =>
+          ex.id === exerciseId
+            ? {
+                ...ex,
+                weight,
+                increaseSuggested: ex.increaseSuggested && !(weight > (ex.lastWeight ?? 0)),
+              }
+            : ex,
+        ),
+      })
+    }
+
+    const template = (state.workouts || []).find((w) => w.id === state.activeWorkout?.id)
+    if (template) {
+      updateWorkout({
+        ...template,
+        exercises: template.exercises.map((ex) => (ex.id === exerciseId ? { ...ex, weight } : ex)),
+      })
+    }
   }
 
   return (
@@ -526,6 +682,8 @@ export function WorkoutProvider({ children }) {
         getLastWorkoutSession,
         startRest,
         skipRest,
+        updateExerciseWeight,
+        syncWithCloud,
       }}
     >
       {children}

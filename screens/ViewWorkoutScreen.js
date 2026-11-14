@@ -1,39 +1,52 @@
-import React, { useState } from 'react'
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native'
+import { useState, useLayoutEffect } from 'react'
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useWorkout } from '../context/WorkoutContext'
-import AsyncStorage from "@react-native-async-storage/async-storage"
+import WorkoutForm from '../components/WorkoutForm'
+import KeyboardSafeView from '../components/KeyboardSafeView'
+import VideoButton from '../components/VideoButton'
+import { workoutToForm, formToWorkout, formatWeight } from '../lib/workoutForm'
 
 export default function ViewWorkoutScreen({ route, navigation }) {
-  const { workout } = route.params
-  const { updateWorkout, deleteWorkout, activeWorkout, updateActiveWorkout } = useWorkout()
-  
-  const [isEditing, setIsEditing] = useState(route.params?.isEditing || false)
-  const [editedWorkout, setEditedWorkout] = useState(workout)
+  const { workouts, updateWorkout, deleteWorkout, activeWorkout, updateActiveWorkout } = useWorkout()
 
-  const handleSave = async () => {
-    // Update the workout in storage AND state
+  // Always show the saved workout, not the copy passed in (which may be the in-progress one)
+  const workout = workouts.find((w) => w.id === route.params.workout.id) || route.params.workout
+
+  const [isEditing, setIsEditing] = useState(route.params?.isEditing || false)
+  const [form, setForm] = useState(() => workoutToForm(workout))
+
+  const startEditing = () => {
+    setForm(workoutToForm(workout))
+    setIsEditing(true)
+  }
+
+  const handleSave = () => {
+    const { workout: editedWorkout, error } = formToWorkout(form, {
+      id: workout.id,
+      createdAt: workout.createdAt,
+    })
+    if (error) {
+      Alert.alert('Error', error)
+      return
+    }
+
     updateWorkout(editedWorkout)
-    
-    // CRITICAL FIX: Force save to AsyncStorage immediately
-    const storedWorkouts = await AsyncStorage.getItem("workouts")
-    const workouts = storedWorkouts ? JSON.parse(storedWorkouts) : []
-    const updatedWorkouts = workouts.map(w => w.id === editedWorkout.id ? editedWorkout : w)
-    await AsyncStorage.setItem("workouts", JSON.stringify(updatedWorkouts))
-    
-    // If this workout is currently active, update the active workout too
+
+    // If this workout is in progress, apply the changes but keep the progress made so far
     if (activeWorkout && activeWorkout.id === editedWorkout.id) {
       const updatedActiveWorkout = {
+        ...activeWorkout,
         ...editedWorkout,
         exercises: editedWorkout.exercises.map(ex => {
           const activeEx = activeWorkout.exercises?.find(activeEx => activeEx.id === ex.id)
           if (activeEx) {
             const newSetsCount = ex.sets
             const oldSetsCount = activeEx.completed?.length || 0
-            
+
             let newCompleted = [...(activeEx.completed || [])]
             let newSetsCompleted = [...(activeEx.setsCompleted || [])]
-            
+
             if (newSetsCount > oldSetsCount) {
               const additionalSets = newSetsCount - oldSetsCount
               newCompleted = [...newCompleted, ...new Array(additionalSets).fill(ex.reps)]
@@ -42,12 +55,14 @@ export default function ViewWorkoutScreen({ route, navigation }) {
               newCompleted = newCompleted.slice(0, newSetsCount)
               newSetsCompleted = newSetsCompleted.slice(0, newSetsCount)
             }
-            
+
             return {
               ...ex,
               completed: newCompleted,
               setsCompleted: newSetsCompleted,
               lastPerformance: activeEx.lastPerformance,
+              lastWeight: activeEx.lastWeight ?? null,
+              increaseSuggested: activeEx.increaseSuggested && !(ex.weight > (activeEx.lastWeight ?? 0)),
               isCompleted: activeEx.isCompleted || false,
             }
           }
@@ -56,19 +71,21 @@ export default function ViewWorkoutScreen({ route, navigation }) {
             completed: new Array(ex.sets).fill(ex.reps),
             setsCompleted: new Array(ex.sets).fill(false),
             lastPerformance: null,
+            lastWeight: null,
+            increaseSuggested: false,
             isCompleted: false,
           }
         })
       }
       updateActiveWorkout(updatedActiveWorkout)
     }
-    
+
     setIsEditing(false)
     Alert.alert('Success', 'Workout updated successfully!')
   }
 
   const handleCancel = () => {
-    setEditedWorkout(workout)
+    setForm(workoutToForm(workout))
     setIsEditing(false)
   }
 
@@ -90,21 +107,34 @@ export default function ViewWorkoutScreen({ route, navigation }) {
     )
   }
 
-  const updateExercise = (exerciseId, field, value) => {
-    setEditedWorkout(prev => ({
-      ...prev,
-      exercises: prev.exercises.map(ex =>
-        ex.id === exerciseId ? { ...ex, [field]: parseInt(value) || 0 } : ex
-      )
-    }))
-  }
-
-  const updateWorkoutField = (field, value) => {
-    setEditedWorkout(prev => ({
-      ...prev,
-      [field]: field === 'title' ? value : parseInt(value) || 0
-    }))
-  }
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: isEditing ? 'Edit Workout' : 'Workout Details',
+      headerRight: () => (
+        <View style={styles.headerActions}>
+          {!isEditing ? (
+            <>
+              <TouchableOpacity onPress={startEditing} style={styles.headerButton}>
+                <Ionicons name="pencil" size={20} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleDelete} style={styles.headerButton}>
+                <Ionicons name="trash-outline" size={20} color="#fff" />
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
+              <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleSave} style={styles.headerButton}>
+                <Ionicons name="checkmark" size={22} color="#fff" />
+              </TouchableOpacity>
+            </>
+          )}
+        </View>
+      ),
+    })
+  })
 
   const formatTime = (minutes) => {
     if (minutes < 60) return `${minutes}m`
@@ -113,194 +143,91 @@ export default function ViewWorkoutScreen({ route, navigation }) {
     return `${hours}h ${mins}m`
   }
 
-  const currentWorkout = isEditing ? editedWorkout : workout
+  if (isEditing) {
+    return (
+      <KeyboardSafeView>
+      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+        <WorkoutForm form={form} onChange={setForm} />
+        <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+          <Text style={styles.saveButtonText}>Save Changes</Text>
+        </TouchableOpacity>
+      </ScrollView>
+      </KeyboardSafeView>
+    )
+  }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Workout Details</Text>
-        
-        <View style={styles.headerActions}>
-          {!isEditing ? (
-            <>
-              <TouchableOpacity onPress={() => setIsEditing(true)} style={styles.editButton}>
-                <Ionicons name="pencil" size={20} color="#2563eb" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={styles.deleteButton}>
-                <Ionicons name="trash-outline" size={20} color="#ef4444" />
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-                <Ionicons name="close" size={20} color="#6b7280" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleSave} style={styles.saveButton}>
-                <Ionicons name="checkmark" size={20} color="#10b981" />
-              </TouchableOpacity>
-            </>
-          )}
+    <ScrollView style={styles.content}>
+      <View style={styles.workoutCard}>
+        <Text style={styles.workoutTitle}>{workout.title}</Text>
+
+        <View style={styles.workoutInfo}>
+          <View style={styles.infoItem}>
+            <Ionicons name="time-outline" size={16} color="#6b7280" />
+            <Text style={styles.infoLabel}>Total Time:</Text>
+            <Text style={styles.infoValue}>{formatTime(workout.totalTime)}</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Ionicons name="pause-circle-outline" size={16} color="#6b7280" />
+            <Text style={styles.infoLabel}>Set Rest:</Text>
+            <Text style={styles.infoValue}>{workout.setRest}s</Text>
+          </View>
+          <View style={styles.infoItem}>
+            <Ionicons name="pause-circle" size={16} color="#6b7280" />
+            <Text style={styles.infoLabel}>Exercise Rest:</Text>
+            <Text style={styles.infoValue}>{workout.exerciseRest}s</Text>
+          </View>
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
-        <View style={styles.workoutCard}>
-          <View style={styles.titleSection}>
-            {isEditing ? (
-              <TextInput
-                style={styles.titleInput}
-                value={currentWorkout.title}
-                onChangeText={(value) => updateWorkoutField('title', value)}
-                placeholder="Workout title"
-              />
-            ) : (
-              <Text style={styles.workoutTitle}>{currentWorkout.title}</Text>
+      <View style={styles.exercisesSection}>
+        <Text style={styles.sectionTitle}>Exercises ({workout.exercises.length})</Text>
+
+        {workout.exercises.map((exercise, index) => (
+          <View key={exercise.id} style={styles.exerciseCard}>
+            <View style={styles.exerciseHeader}>
+              <Text style={styles.exerciseNumber}>{index + 1}</Text>
+              <Text style={styles.exerciseName}>{exercise.name}</Text>
+            </View>
+
+            <Text style={styles.exerciseTarget}>
+              {exercise.sets} × {exercise.reps}
+              {exercise.weight !== null && exercise.weight !== undefined ? `  ·  ${formatWeight(exercise.weight)}` : ''}
+            </Text>
+
+            {!!exercise.settings && (
+              <View style={styles.detailRow}>
+                <Ionicons name="settings-outline" size={14} color="#6b7280" />
+                <Text style={styles.detailText}>{exercise.settings}</Text>
+              </View>
             )}
+            {!!exercise.notes && (
+              <View style={styles.detailRow}>
+                <Ionicons name="document-text-outline" size={14} color="#6b7280" />
+                <Text style={styles.detailText}>{exercise.notes}</Text>
+              </View>
+            )}
+
+            <VideoButton videos={exercise.videos} />
           </View>
-
-          <View style={styles.workoutInfo}>
-            <View style={styles.infoRow}>
-              <View style={styles.infoItem}>
-                <Ionicons name="time-outline" size={16} color="#6b7280" />
-                <Text style={styles.infoLabel}>Total Time:</Text>
-                {isEditing ? (
-                  <TextInput
-                    style={styles.infoInput}
-                    value={currentWorkout.totalTime?.toString()}
-                    onChangeText={(value) => updateWorkoutField('totalTime', value)}
-                    placeholder="0"
-                    keyboardType="numeric"
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{formatTime(currentWorkout.totalTime)}</Text>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <View style={styles.infoItem}>
-                <Ionicons name="pause-circle-outline" size={16} color="#6b7280" />
-                <Text style={styles.infoLabel}>Set Rest:</Text>
-                {isEditing ? (
-                  <TextInput
-                    style={styles.infoInput}
-                    value={currentWorkout.setRest?.toString()}
-                    onChangeText={(value) => updateWorkoutField('setRest', value)}
-                    placeholder="60"
-                    keyboardType="numeric"
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{currentWorkout.setRest}s</Text>
-                )}
-              </View>
-            </View>
-
-            <View style={styles.infoRow}>
-              <View style={styles.infoItem}>
-                <Ionicons name="pause-circle" size={16} color="#6b7280" />
-                <Text style={styles.infoLabel}>Exercise Rest:</Text>
-                {isEditing ? (
-                  <TextInput
-                    style={styles.infoInput}
-                    value={currentWorkout.exerciseRest?.toString()}
-                    onChangeText={(value) => updateWorkoutField('exerciseRest', value)}
-                    placeholder="120"
-                    keyboardType="numeric"
-                  />
-                ) : (
-                  <Text style={styles.infoValue}>{currentWorkout.exerciseRest}s</Text>
-                )}
-              </View>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.exercisesSection}>
-          <Text style={styles.sectionTitle}>Exercises ({currentWorkout.exercises.length})</Text>
-          
-          {currentWorkout.exercises.map((exercise, index) => (
-            <View key={exercise.id} style={styles.exerciseCard}>
-              <View style={styles.exerciseHeader}>
-                <Text style={styles.exerciseNumber}>{index + 1}</Text>
-                <Text style={styles.exerciseName}>{exercise.name}</Text>
-              </View>
-
-              <View style={styles.exerciseDetails}>
-                <View style={styles.exerciseDetailRow}>
-                  <View style={styles.exerciseDetailItem}>
-                    <Text style={styles.exerciseDetailLabel}>Sets:</Text>
-                    {isEditing ? (
-                      <TextInput
-                        style={styles.exerciseDetailInput}
-                        value={exercise.sets?.toString()}
-                        onChangeText={(value) => updateExercise(exercise.id, 'sets', value)}
-                        keyboardType="numeric"
-                      />
-                    ) : (
-                      <Text style={styles.exerciseDetailValue}>{exercise.sets}</Text>
-                    )}
-                  </View>
-
-                  <View style={styles.exerciseDetailItem}>
-                    <Text style={styles.exerciseDetailLabel}>Reps:</Text>
-                    {isEditing ? (
-                      <TextInput
-                        style={styles.exerciseDetailInput}
-                        value={exercise.reps?.toString()}
-                        onChangeText={(value) => updateExercise(exercise.id, 'reps', value)}
-                        keyboardType="numeric"
-                      />
-                    ) : (
-                      <Text style={styles.exerciseDetailValue}>{exercise.reps}</Text>
-                    )}
-                  </View>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    </View>
+        ))}
+      </View>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-  },
   headerActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
+    marginRight: 12,
   },
-  editButton: {
-    padding: 4,
-  },
-  deleteButton: {
-    padding: 4,
-  },
-  cancelButton: {
-    padding: 4,
-  },
-  saveButton: {
-    padding: 4,
+  headerButton: {
+    padding: 6,
   },
   content: {
     flex: 1,
+    backgroundColor: '#f9fafb',
     padding: 16,
   },
   workoutCard: {
@@ -314,33 +241,19 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-  titleSection: {
-    marginBottom: 16,
-  },
   workoutTitle: {
     fontSize: 24,
     fontWeight: '700',
     color: '#111827',
-  },
-  titleInput: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
-    borderBottomWidth: 1,
-    borderBottomColor: '#d1d5db',
-    paddingBottom: 4,
+    textAlign: 'center',
+    marginBottom: 16,
   },
   workoutInfo: {
     gap: 12,
   },
-  infoRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
   infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    flex: 1,
   },
   infoLabel: {
     fontSize: 14,
@@ -353,17 +266,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
-  infoInput: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    borderBottomWidth: 1,
-    borderBottomColor: '#d1d5db',
-    minWidth: 60,
-    textAlign: 'center',
-  },
   exercisesSection: {
-    marginBottom: 20,
+    marginBottom: 40,
   },
   sectionTitle: {
     fontSize: 18,
@@ -385,7 +289,7 @@ const styles = StyleSheet.create({
   exerciseHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   exerciseNumber: {
     backgroundColor: '#2563eb',
@@ -405,36 +309,33 @@ const styles = StyleSheet.create({
     color: '#111827',
     flex: 1,
   },
-  exerciseDetails: {
-    gap: 8,
+  exerciseTarget: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#2563eb',
+    marginBottom: 8,
   },
-  exerciseDetailRow: {
+  detailRow: {
     flexDirection: 'row',
-    gap: 20,
+    alignItems: 'flex-start',
+    marginBottom: 6,
   },
-  exerciseDetailItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  detailText: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 6,
     flex: 1,
   },
-  exerciseDetailLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginRight: 8,
-    minWidth: 40,
+  saveButton: {
+    backgroundColor: '#2563eb',
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginBottom: 48,
   },
-  exerciseDetailValue: {
-    fontSize: 14,
+  saveButtonText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '600',
-    color: '#111827',
-  },
-  exerciseDetailInput: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
-    borderBottomWidth: 1,
-    borderBottomColor: '#d1d5db',
-    minWidth: 40,
-    textAlign: 'center',
   },
 })

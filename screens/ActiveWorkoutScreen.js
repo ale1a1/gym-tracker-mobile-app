@@ -1,9 +1,13 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useLayoutEffect } from "react"
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Modal } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
+import WeightControl from "../components/WeightControl"
+import KeyboardSafeView from "../components/KeyboardSafeView"
+import VideoButton from "../components/VideoButton"
+import { formatWeight, hitTarget } from "../lib/workoutForm"
 
 export default function ActiveWorkoutScreen({ route, navigation }) {
   const { workout } = route.params || {}
@@ -23,6 +27,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     restType,
     startRest,
     skipRest,
+    updateExerciseWeight,
   } = useWorkout()
 
   const [showCompletionModal, setShowCompletionModal] = useState(false)
@@ -82,6 +87,26 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     }
   }, [currentWorkout, showCompletionModal, hasShownModal])
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: currentWorkout?.title || "Workout",
+      headerRight: () =>
+        currentWorkout ? (
+          <View style={styles.headerActions}>
+            <TouchableOpacity style={styles.headerButton} onPress={finishWorkoutHandler}>
+              <Ionicons name="checkmark" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton} onPress={cancelWorkoutHandler}>
+              <Ionicons name="close" size={22} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.headerButton} onPress={editWorkoutHandler}>
+              <Ionicons name="create-outline" size={20} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        ) : null,
+    })
+  })
+
   if (!currentWorkout || !currentWorkout.exercises || !Array.isArray(currentWorkout.exercises)) {
     return (
       <View style={styles.errorContainer}>
@@ -104,7 +129,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
 
   const pauseWorkoutHandler = () => pauseWorkout()
 
-  const finishWorkoutHandler = () => {
+  function finishWorkoutHandler() {
     Alert.alert("Finish Workout", "Are you sure you want to finish this workout?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -118,11 +143,11 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
     ])
   }
 
-  const cancelWorkoutHandler = () => {
+  function cancelWorkoutHandler() {
     setShowCancelModal(true)
   }
 
-  const editWorkoutHandler = () => {
+  function editWorkoutHandler() {
     navigation.navigate("ViewWorkout", { workout: currentWorkout, isEditing: true })
   }
 
@@ -293,24 +318,6 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        {/* <TouchableOpacity onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#2563eb" />
-        </TouchableOpacity> */}
-        <Text style={styles.title}>{currentWorkout.title}</Text>
-        <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.headerButton} onPress={finishWorkoutHandler}>
-            <Ionicons name="checkmark" size={20} color="#10b981" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={cancelWorkoutHandler}>
-            <Ionicons name="close" size={20} color="#ef4444" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.headerButton} onPress={editWorkoutHandler}>
-            <Ionicons name="create-outline" size={20} color="#2563eb" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <View style={styles.timerHeader}>
         <View style={styles.timerSection}>
           <View style={styles.timerContainer}>
@@ -349,10 +356,12 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
         </View>
       </View>
 
-      <ScrollView style={styles.exercisesList}>
+      <KeyboardSafeView>
+      <ScrollView style={styles.exercisesList} keyboardShouldPersistTaps="handled">
         {currentWorkout.exercises &&
           currentWorkout.exercises.map((exercise, exerciseIndex) => {
             const allSetsCompleted = exercise.setsCompleted && exercise.setsCompleted.every((completed) => completed)
+            const hasWeight = exercise.weight !== null && exercise.weight !== undefined
 
             return (
               <View key={exercise.id} style={[styles.exerciseCard, allSetsCompleted && styles.completedCard]}>
@@ -362,9 +371,29 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                   {allSetsCompleted && <Ionicons name="checkmark-circle" size={40} color="#10b981" />}
                 </View>
 
+                {(!!exercise.settings || (exercise.videos && exercise.videos.length > 0)) && (
+                  <View style={styles.exerciseMeta}>
+                    {!!exercise.settings && (
+                      <View style={styles.settingsChip}>
+                        <Ionicons name="settings-outline" size={14} color="#374151" />
+                        <Text style={styles.settingsText}>{exercise.settings}</Text>
+                      </View>
+                    )}
+                    <VideoButton videos={exercise.videos} />
+                  </View>
+                )}
+                {!!exercise.notes && <Text style={styles.notesText}>{exercise.notes}</Text>}
+
+                <WeightControl
+                  weight={exercise.weight ?? null}
+                  increaseSuggested={exercise.increaseSuggested}
+                  onChange={(weight) => updateExerciseWeight(exercise.id, weight)}
+                />
+
                 <View style={styles.setsContainer}>
                   <Text style={styles.setsLabel}>
                     Target: {exercise.sets} sets × {exercise.reps} reps
+                    {hasWeight ? ` @ ${formatWeight(exercise.weight)}` : ""}
                   </Text>
 
                   <View style={styles.setsGrid}>{exercise.completed && renderSetsGrid(exercise)}</View>
@@ -372,6 +401,15 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
                   {exercise.lastPerformance && (
                     <View style={styles.lastPerformance}>
                       <Text style={styles.lastPerformanceText}>Previous: [{exercise.lastPerformance.join("-")}]</Text>
+                    </View>
+                  )}
+
+                  {allSetsCompleted && hasWeight && hitTarget(exercise) && (
+                    <View style={styles.targetHitBanner}>
+                      <Ionicons name="trophy" size={18} color="#047857" />
+                      <Text style={styles.targetHitText}>
+                        Target hit! Increase the weight next time.
+                      </Text>
                     </View>
                   )}
 
@@ -387,6 +425,7 @@ export default function ActiveWorkoutScreen({ route, navigation }) {
             )
           })}
       </ScrollView>
+      </KeyboardSafeView>
 
       {/* Cancel Confirmation Modal */}
       <Modal
@@ -476,33 +515,55 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     textAlign: "center",
   },
-  header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 16,
-    backgroundColor: "#fff",
-    borderBottomWidth: 1,
-    borderBottomColor: "#e5e7eb",
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "bold",
-    color: "#333",
-    flex: 1,
-    textAlign: "left"
-  },
   headerActions: {
     flexDirection: "row",
-    gap: 12,
+    gap: 2,
+    marginRight: 8,
   },
   headerButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#f3f4f6",
-    justifyContent: "center",
+    padding: 6,
+  },
+  exerciseMeta: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  settingsChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  settingsText: {
+    fontSize: 13,
+    color: "#374151",
+    marginLeft: 4,
+    fontWeight: "500",
+  },
+  notesText: {
+    fontSize: 13,
+    color: "#6b7280",
+    fontStyle: "italic",
+    marginBottom: 8,
+  },
+  targetHitBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#d1fae5",
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+    gap: 8,
+  },
+  targetHitText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#047857",
+    fontWeight: "600",
   },
   timerHeader: {
     backgroundColor: "#2563eb",
@@ -624,7 +685,7 @@ const styles = StyleSheet.create({
   exerciseHeader: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 12,
   },
   exerciseNumber: {
     backgroundColor: "#2563eb",
