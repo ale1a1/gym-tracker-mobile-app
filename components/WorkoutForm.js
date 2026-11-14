@@ -1,9 +1,20 @@
+import { useRef } from "react"
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { emptyExercise } from "../lib/workoutForm"
 
 // Shared by Create Workout and the edit mode of View Workout
-export default function WorkoutForm({ form, onChange }) {
+// focusExerciseId highlights one exercise; onFocusLayout(y) reports where it sits so the
+// screen can scroll to it
+export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLayout }) {
+  const sectionY = useRef(null)
+  const focusY = useRef(null)
+  const reportFocus = () => {
+    if (onFocusLayout && sectionY.current !== null && focusY.current !== null) {
+      onFocusLayout(sectionY.current + focusY.current)
+    }
+  }
+
   const setField = (field, value) => onChange({ ...form, [field]: value })
 
   const updateExercise = (id, field, value) =>
@@ -86,7 +97,13 @@ export default function WorkoutForm({ form, onChange }) {
         </View>
       </View>
 
-      <View style={styles.section}>
+      <View
+        style={styles.section}
+        onLayout={(e) => {
+          sectionY.current = e.nativeEvent.layout.y
+          reportFocus()
+        }}
+      >
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Exercises</Text>
           <TouchableOpacity style={styles.addExerciseButton} onPress={addExercise}>
@@ -96,7 +113,18 @@ export default function WorkoutForm({ form, onChange }) {
         </View>
 
         {form.exercises.map((exercise, index) => (
-          <View key={exercise.id} style={styles.exerciseCard}>
+          <View
+            key={exercise.id}
+            style={[styles.exerciseCard, exercise.id === focusExerciseId && styles.focusedCard]}
+            onLayout={
+              exercise.id === focusExerciseId
+                ? (e) => {
+                    focusY.current = e.nativeEvent.layout.y
+                    reportFocus()
+                  }
+                : undefined
+            }
+          >
             <View style={styles.exerciseHeader}>
               <Text style={styles.exerciseNumber}>Exercise {index + 1}</Text>
               <View style={styles.exerciseActions}>
@@ -293,6 +321,10 @@ const styles = StyleSheet.create({
     color: "#2563eb",
     fontWeight: "500",
     marginLeft: 4,
+  },
+  focusedCard: {
+    borderWidth: 2,
+    borderColor: "#2563eb",
   },
   exerciseCard: {
     backgroundColor: "#fff",

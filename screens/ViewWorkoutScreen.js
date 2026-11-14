@@ -1,4 +1,4 @@
-import { useState, useLayoutEffect } from 'react'
+import { useState, useLayoutEffect, useEffect, useRef } from 'react'
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { useWorkout } from '../context/WorkoutContext'
@@ -8,27 +8,42 @@ import VideoButton from '../components/VideoButton'
 import { workoutToForm, formToWorkout, formatWeight } from '../lib/workoutForm'
 
 export default function ViewWorkoutScreen({ route, navigation }) {
-  const { workouts, updateWorkout, deleteWorkout, activeWorkout, updateActiveWorkout } = useWorkout()
+  const { workouts, workoutHistory, updateWorkout, deleteWorkout, activeWorkout, updateActiveWorkout } = useWorkout()
 
   // Always show the saved workout, not the copy passed in (which may be the in-progress one)
   const workout = workouts.find((w) => w.id === route.params.workout.id) || route.params.workout
 
   const [isEditing, setIsEditing] = useState(route.params?.isEditing || false)
   const [form, setForm] = useState(() => workoutToForm(workout))
+  const [focusExerciseId, setFocusExerciseId] = useState(null)
+  const scrollRef = useRef(null)
 
-  const startEditing = () => {
+  // Reps done per exercise in the last finished session of this workout
+  const lastSession = (workoutHistory || [])
+    .filter((h) => h && h.originalId === workout.id)
+    .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0]
+  const lastRepsFor = (exerciseId) =>
+    lastSession?.exercises?.find((ex) => ex && ex.id === exerciseId)?.completed || null
+
+  // Tapping an exercise opens the whole workout in edit mode, scrolled to that exercise
+  const startEditing = (exerciseId = null) => {
     setForm(workoutToForm(workout))
+    setFocusExerciseId(exerciseId)
     setIsEditing(true)
   }
 
-  const handleSave = () => {
+  const hasChanges = () => JSON.stringify(form) !== JSON.stringify(workoutToForm(workout))
+
+  // Returns false when the form is invalid (the error is shown)
+  const saveChanges = () => {
+    if (!hasChanges()) return true
     const { workout: editedWorkout, error } = formToWorkout(form, {
       id: workout.id,
       createdAt: workout.createdAt,
     })
     if (error) {
       Alert.alert('Error', error)
-      return
+      return false
     }
 
     updateWorkout(editedWorkout)
@@ -79,15 +94,40 @@ export default function ViewWorkoutScreen({ route, navigation }) {
       }
       updateActiveWorkout(updatedActiveWorkout)
     }
-
-    setIsEditing(false)
-    Alert.alert('Success', 'Workout updated successfully!')
+    return true
   }
 
+  const handleSave = () => {
+    if (saveChanges()) {
+      setIsEditing(false)
+      setFocusExerciseId(null)
+    }
+  }
+
+  // X: throw away the changes
   const handleCancel = () => {
     setForm(workoutToForm(workout))
     setIsEditing(false)
+    setFocusExerciseId(null)
   }
+
+  // Going back while editing saves automatically (only X discards)
+  useEffect(() => {
+    if (!isEditing) return
+    return navigation.addListener('beforeRemove', (e) => {
+      if (!hasChanges()) return
+      const { error } = formToWorkout(form, { id: workout.id, createdAt: workout.createdAt })
+      if (!error) {
+        saveChanges()
+        return
+      }
+      e.preventDefault()
+      Alert.alert("Can't save", error, [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard changes', style: 'destructive', onPress: () => navigation.dispatch(e.data.action) },
+      ])
+    })
+  })
 
   const handleDelete = () => {
     Alert.alert(
@@ -114,7 +154,7 @@ export default function ViewWorkoutScreen({ route, navigation }) {
         <View style={styles.headerActions}>
           {!isEditing ? (
             <>
-              <TouchableOpacity onPress={startEditing} style={styles.headerButton}>
+              <TouchableOpacity onPress={() => startEditing()} style={styles.headerButton}>
                 <Ionicons name="pencil" size={20} color="#fff" />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleDelete} style={styles.headerButton}>
@@ -146,8 +186,13 @@ export default function ViewWorkoutScreen({ route, navigation }) {
   if (isEditing) {
     return (
       <KeyboardSafeView>
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-        <WorkoutForm form={form} onChange={setForm} />
+      <ScrollView ref={scrollRef} style={styles.content} keyboardShouldPersistTaps="handled">
+        <WorkoutForm
+          form={form}
+          onChange={setForm}
+          focusExerciseId={focusExerciseId}
+          onFocusLayout={(y) => scrollRef.current?.scrollTo({ y: Math.max(0, y - 8), animated: true })}
+        />
         <TouchableOpacity style={styles.saveButton} onPress={handleSave}>
           <Text style={styles.saveButtonText}>Save Changes</Text>
         </TouchableOpacity>
@@ -183,16 +228,20 @@ export default function ViewWorkoutScreen({ route, navigation }) {
       <View style={styles.exercisesSection}>
         <Text style={styles.sectionTitle}>Exercises ({workout.exercises.length})</Text>
 
-        {workout.exercises.map((exercise, index) => (
-          <View key={exercise.id} style={styles.exerciseCard}>
+        {workout.exercises.map((exercise, index) => {
+          const lastReps = lastRepsFor(exercise.id)
+          return (
+          <TouchableOpacity key={exercise.id} style={styles.exerciseCard} onPress={() => startEditing(exercise.id)} activeOpacity={0.7}>
             <View style={styles.exerciseHeader}>
               <Text style={styles.exerciseNumber}>{index + 1}</Text>
               <Text style={styles.exerciseName}>{exercise.name}</Text>
+              <Ionicons name="create-outline" size={18} color="#9ca3af" />
             </View>
 
             <Text style={styles.exerciseTarget}>
               {exercise.sets} × {exercise.reps}
               {exercise.weight !== null && exercise.weight !== undefined ? `  ·  ${formatWeight(exercise.weight)}` : ''}
+              {lastReps ? <Text style={styles.lastReps}>{`  [${lastReps.join('-')}]`}</Text> : null}
             </Text>
 
             {!!exercise.settings && (
@@ -209,8 +258,9 @@ export default function ViewWorkoutScreen({ route, navigation }) {
             )}
 
             <VideoButton videos={exercise.videos} />
-          </View>
-        ))}
+          </TouchableOpacity>
+          )
+        })}
       </View>
     </ScrollView>
   )
@@ -308,6 +358,10 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
     flex: 1,
+  },
+  lastReps: {
+    color: '#374151',
+    fontWeight: '700',
   },
   exerciseTarget: {
     fontSize: 15,
