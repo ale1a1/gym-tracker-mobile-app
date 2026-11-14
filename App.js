@@ -1,6 +1,7 @@
 import { NavigationContainer } from "@react-navigation/native"
 import { createNativeStackNavigator } from "@react-navigation/native-stack"
 import { StatusBar } from "expo-status-bar"
+import { Appearance } from "react-native"
 import { WorkoutProvider } from "./context/WorkoutContext"
 import HomeScreen from "./screens/HomeScreen"
 import WorkoutListScreen from "./screens/WorkoutListScreen"
@@ -9,6 +10,9 @@ import ActiveWorkoutScreen from "./screens/ActiveWorkoutScreen"
 import ViewWorkoutScreen from "./screens/ViewWorkoutScreen"
 
 const Stack = createNativeStackNavigator()
+
+// The app is light-only: stop dialogs, inputs and the keyboard from following the phone's dark mode
+Appearance.setColorScheme("light")
 
 export default function App() {
   return (
