@@ -125,8 +125,8 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
                 WorkoutListScreen(
                     state = state,
                     viewModel = viewModel,
-                    onPreview = { id -> navController.navigate("preview/$id") },
-                    onContinue = { navController.navigate("workout") },
+                    onOpenWorkout = { navController.navigate("workout") },
+                    onHistory = { id -> navController.navigate("workoutHistory/$id") },
                 )
             }
             composable("preview/{workoutId}") { entry ->
@@ -141,8 +141,14 @@ private fun GymTrackerApp(state: UiState, viewModel: WorkoutViewModel, activity:
                         workout = workout,
                         onStart = { viewModel.startWorkout(workout) { openWorkout() } },
                         onSwitch = { mode -> viewModel.switchWorkout(workout, mode) { openWorkout() } },
+                        onHistory = { navController.navigate("workoutHistory/${workout.id}") },
                     )
                 }
+            }
+            composable("workoutHistory/{workoutId}") { entry ->
+                val state by viewModel.state.collectAsStateWithLifecycle()
+                val workout = state.workouts.find { it.id == entry.arguments?.getString("workoutId") }
+                if (workout == null) Message("Workout not found") else WorkoutHistoryScreen(workout)
             }
             composable("workout") {
                 val state by viewModel.state.collectAsStateWithLifecycle()
@@ -228,8 +234,15 @@ private fun SignInScreen(state: UiState, viewModel: WorkoutViewModel, activity: 
 }
 
 @Composable
-private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPreview: (String) -> Unit, onContinue: () -> Unit) {
+private fun WorkoutListScreen(
+    state: UiState,
+    viewModel: WorkoutViewModel,
+    onOpenWorkout: () -> Unit,
+    onHistory: (String) -> Unit,
+) {
     val listState = rememberScalingLazyListState()
+    // ▶ pressed on another workout while one is running: ask what to do with the running one
+    var switchTo by remember { mutableStateOf<WorkoutRow?>(null) }
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
             state = listState,
@@ -238,27 +251,54 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPre
             verticalArrangement = Arrangement.spacedBy(8.dp), // a little space between workouts
             modifier = Modifier.fillMaxWidth(),
         ) {
-            item { ListHeader { Text("Workouts") } }
+            item { ListHeader { Text("Workouts", fontSize = 20.sp, fontWeight = FontWeight.Bold) } }
             state.error?.let { error -> item { ErrorText(error) { viewModel.clearError() } } }
             if (state.workouts.isEmpty() && !state.loading) {
                 item { Text("No workouts yet. Create them on the phone.", textAlign = TextAlign.Center) }
             }
             state.workouts.forEach { workout ->
                 val running = state.live?.workout?.id == workout.id
+                // Name with ▶ start/continue and history right on the list (no extra page)
                 item {
-                    FilledTonalButton(
-                        onClick = { if (running) onContinue() else onPreview(workout.id) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !state.loading,
-                        colors = if (running) ButtonDefaults.buttonColors(containerColor = Green, contentColor = Color.White)
-                        else ButtonDefaults.filledTonalButtonColors(),
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(if (running) Green else Color(0xFF26262A))
+                            .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        Column {
-                            Text(workout.title, fontWeight = FontWeight.Bold)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(workout.title, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Color.White)
                             Text(
-                                if (running) "▶ In progress · Continue" else "${workout.exercises.size} exercises",
-                                style = MaterialTheme.typography.bodySmall,
+                                if (running) "In progress" else "${workout.exercises.size} exercises",
+                                fontSize = 12.sp,
+                                color = if (running) Color.White else Color.Gray,
                             )
+                        }
+                        // ▶ start (or continue the running one)
+                        Box(
+                            modifier = Modifier
+                                .size(38.dp)
+                                .clip(CircleShape)
+                                .background(if (running) Color.White else Green)
+                                .clickable(enabled = !state.loading) {
+                                    when {
+                                        running -> onOpenWorkout()
+                                        state.live != null -> switchTo = workout
+                                        else -> viewModel.startWorkout(workout) { onOpenWorkout() }
+                                    }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(Icons.Filled.PlayArrow, contentDescription = "Start", tint = if (running) Green else Color.White, modifier = Modifier.size(26.dp))
+                        }
+                        Box(
+                            modifier = Modifier.size(38.dp).clip(CircleShape).background(SoftBlue).clickable { onHistory(workout.id) },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            Icon(AppIcons.History, contentDescription = "History", tint = Color(0xFF0B1F3A), modifier = Modifier.size(22.dp))
                         }
                     }
                 }
@@ -295,6 +335,20 @@ private fun WorkoutListScreen(state: UiState, viewModel: WorkoutViewModel, onPre
                     }
                 }
             }
+        }
+
+        val current = state.live
+        val next = switchTo
+        if (next != null && current != null) {
+            SwitchWorkoutDialog(
+                current = current.workout.title,
+                next = next.title,
+                onChoice = { mode ->
+                    switchTo = null
+                    viewModel.switchWorkout(next, mode) { onOpenWorkout() }
+                },
+                onCancel = { switchTo = null },
+            )
         }
     }
 }
@@ -721,6 +775,7 @@ private fun WorkoutPreviewScreen(
     workout: WorkoutRow,
     onStart: () -> Unit,
     onSwitch: (WorkoutViewModel.EndMode) -> Unit,
+    onHistory: () -> Unit,
 ) {
     val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
     val running = state.live?.workout?.id == workout.id
@@ -760,6 +815,12 @@ private fun WorkoutPreviewScreen(
                         } else {
                             Icon(Icons.Filled.PlayArrow, contentDescription = "Start", tint = Color.White, modifier = Modifier.size(30.dp))
                         }
+                    }
+                    Box(
+                        modifier = Modifier.size(38.dp).clip(CircleShape).background(SoftBlue).clickable(onClick = onHistory),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(AppIcons.History, contentDescription = "History", tint = Color(0xFF0B1F3A), modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -862,6 +923,93 @@ private fun SwitchWorkoutDialog(
                 }
             }
         }
+    }
+}
+
+// A whole past workout on one screen (date, time, every exercise with weight and reps);
+// ◀ ▶ step through the last 5 sessions
+@Composable
+private fun WorkoutHistoryScreen(workout: WorkoutRow) {
+    var sessions by remember { mutableStateOf<List<SessionRow>?>(null) }
+    var error by remember { mutableStateOf(false) }
+    var index by remember { mutableStateOf(0) } // 0 = most recent
+    val listState = rememberScalingLazyListState(initialCenterItemIndex = 0)
+
+    LaunchedEffect(workout.id) {
+        runCatching { Repository.completedSessions(workout.id).take(5) }
+            .onSuccess { sessions = it }
+            .onFailure { error = true }
+    }
+
+    ScreenScaffold(scrollState = listState) { padding ->
+        ScalingLazyColumn(
+            state = listState,
+            contentPadding = padding.withBottomRoom(),
+            autoCentering = null,
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            item { Text(workout.title, fontSize = 16.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 12.dp)) }
+            val all = sessions
+            when {
+                error -> item { ErrorText("Couldn't load history") }
+                all == null -> item { Text("Loading…", fontSize = 13.sp) }
+                all.isEmpty() -> item { Text("Not done yet", fontSize = 13.sp, color = Color.Gray) }
+                else -> {
+                    val session = all[index]
+                    // ◀ date ▶  (◀ = older)
+                    item {
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            HistoryArrow("◀", enabled = index < all.lastIndex) { index++ }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    session.completedAt?.let {
+                                        parseTimestamp(it).atZone(java.time.ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("EEE d MMM"))
+                                    } ?: "",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                )
+                                Text("${index + 1} of ${all.size}", fontSize = 11.sp, color = Color.Gray)
+                            }
+                            HistoryArrow("▶", enabled = index > 0) { index-- }
+                        }
+                    }
+                    // every exercise of that session: name, weight, reps
+                    session.sets
+                        .groupBy { it.exercisePosition }
+                        .toSortedMap()
+                        .values
+                        .forEach { sets ->
+                            val first = sets.first()
+                            val reps = sets.sortedBy { it.setIndex }.joinToString("-") { it.reps.toString() }
+                            item {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)) {
+                                    Text(first.exerciseName, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    Text(
+                                        (first.weight?.let { formatWeight(it) + "  " } ?: "") + "[$reps]",
+                                        fontSize = 12.sp,
+                                        color = SoftBlue,
+                                    )
+                                }
+                            }
+                        }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryArrow(symbol: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(if (enabled) Color(0xFF34343A) else Color(0xFF1C1C1E))
+            .clickable(enabled = enabled, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(symbol, fontSize = 13.sp, color = if (enabled) Color.White else Color.DarkGray)
     }
 }
 
