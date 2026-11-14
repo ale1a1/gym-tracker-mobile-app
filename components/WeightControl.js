@@ -1,149 +1,135 @@
 import { useState } from "react"
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native"
-import { Ionicons } from "@expo/vector-icons"
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, Modal } from "react-native"
 import { formatWeight } from "../lib/workoutForm"
-import { useThemedStyles, useTheme } from "../lib/theme"
+import { brand, useThemedStyles, useTheme } from "../lib/theme"
 
-// Weight with an edit button: tap, type the new number (decimals ok, blank = no weight), confirm.
-// When `increaseSuggested` is set, a reminder to go heavier is shown; tapping it opens the editor too.
-export default function WeightControl({ weight, increaseSuggested, onChange }) {
+// Weight pill: tap it to type a new weight. Like the watch keypad, the first key replaces the old
+// number (the text starts selected). Decimals ok, blank = no weight.
+export default function WeightControl({ weight, onChange, editing, onEditingChange }) {
+  const styles = useThemedStyles(makeStyles)
+  const [ownOpen, setOwnOpen] = useState(false)
+  // The screen can open the editor too (e.g. from the "increase weight" pill)
+  const open = editing ?? ownOpen
+  const setOpen = onEditingChange ?? setOwnOpen
+
+  return (
+    <>
+      <TouchableOpacity style={styles.pill} onPress={() => setOpen(true)} activeOpacity={0.7}>
+        <Text style={styles.pillText}>{formatWeight(weight) || "+ kg"}</Text>
+      </TouchableOpacity>
+      {open && <WeightEditor weight={weight} onSave={(w) => { onChange(w); setOpen(false) }} onClose={() => setOpen(false)} />}
+    </>
+  )
+}
+
+function WeightEditor({ weight, onSave, onClose }) {
   const styles = useThemedStyles(makeStyles)
   const theme = useTheme().colors
-  const [editing, setEditing] = useState(false)
-  const [text, setText] = useState("")
-
-  const startEditing = () => {
-    setText(weight === null || weight === undefined ? "" : String(weight))
-    setEditing(true)
-  }
+  const [text, setText] = useState(weight === null || weight === undefined ? "" : String(weight))
 
   const save = () => {
     const trimmed = text.trim().replace(",", ".")
-    if (trimmed === "") {
-      onChange(null)
-    } else {
-      const value = Number.parseFloat(trimmed)
-      if (Number.isFinite(value) && value >= 0) onChange(Math.round(value * 100) / 100)
-    }
-    setEditing(false)
+    if (trimmed === "") return onSave(null)
+    const value = Number.parseFloat(trimmed)
+    if (Number.isFinite(value) && value >= 0) onSave(Math.round(value * 100) / 100)
+    else onClose()
   }
 
   return (
-    <View style={styles.wrapper}>
-      {increaseSuggested && !editing && (
-        <TouchableOpacity style={styles.increaseBanner} onPress={startEditing}>
-          <Ionicons name="trending-up" size={20} color="#b45309" />
-          <Text style={styles.increaseText}>Last time you hit every set. Increase the weight today.</Text>
-          <Ionicons name="create-outline" size={18} color="#b45309" />
-        </TouchableOpacity>
-      )}
-
-      <View style={styles.container}>
-        <Text style={styles.label}>Weight</Text>
-        {editing ? (
-          <>
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={styles.box} activeOpacity={1}>
+          <Text style={styles.title}>Weight</Text>
+          <View style={styles.inputRow}>
             <TextInput
               style={styles.input}
               value={text}
               onChangeText={setText}
               onSubmitEditing={save}
               keyboardType="decimal-pad"
-              placeholder="kg"
+              placeholder="0"
               placeholderTextColor={theme.textFaint}
               autoFocus
               selectTextOnFocus
+              maxLength={6}
             />
             <Text style={styles.unit}>kg</Text>
-            <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={save}>
-              <Ionicons name="checkmark" size={20} color="#fff" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.button} onPress={() => setEditing(false)}>
-              <Ionicons name="close" size={20} color={theme.textMuted} />
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <Text style={styles.value}>{formatWeight(weight) || "—"}</Text>
-            <TouchableOpacity style={styles.button} onPress={startEditing}>
-              <Ionicons name="create-outline" size={20} color="#2563eb" />
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-    </View>
+          </View>
+          <TouchableOpacity style={styles.save} onPress={save}>
+            <Text style={styles.saveText}>Save</Text>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
   )
 }
 
-const makeStyles = (c) => StyleSheet.create({
-  wrapper: {
-    marginBottom: 12,
-  },
-  increaseBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: c.warningBg,
-    borderColor: "#f59e0b",
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 8,
-    gap: 8,
-  },
-  increaseText: {
-    flex: 1,
-    fontSize: 13,
-    color: c.warningText,
-    fontWeight: "600",
-  },
-  container: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: c.background,
-    borderRadius: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    gap: 8,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: c.textSecondary,
-    flex: 1,
-  },
-  value: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: c.text,
-  },
-  input: {
-    fontSize: 20,
-    fontWeight: "700",
-    color: c.text,
-    backgroundColor: c.input,
-    borderWidth: 1,
-    borderColor: "#2563eb",
-    borderRadius: 8,
-    minWidth: 80,
-    textAlign: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  unit: {
-    fontSize: 14,
-    color: c.textMuted,
-  },
-  button: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: c.card,
-    borderWidth: 1,
-    borderColor: c.border,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  saveButton: {
-    backgroundColor: "#10b981",
-    borderColor: "#10b981",
-  },
-})
+const makeStyles = (c) =>
+  StyleSheet.create({
+    pill: {
+      backgroundColor: c.subtle,
+      borderRadius: 18,
+      paddingVertical: 7,
+      paddingHorizontal: 14,
+    },
+    pillText: {
+      fontSize: 16,
+      fontWeight: "800",
+      color: c.text,
+      fontVariant: ["tabular-nums"],
+    },
+    overlay: {
+      flex: 1,
+      backgroundColor: "rgba(0,0,0,0.7)",
+      justifyContent: "center",
+      alignItems: "center",
+      padding: 24,
+    },
+    box: {
+      width: "100%",
+      maxWidth: 320,
+      backgroundColor: c.card,
+      borderRadius: 28,
+      padding: 24,
+      alignItems: "center",
+    },
+    title: {
+      fontSize: 15,
+      fontWeight: "700",
+      color: c.textMuted,
+    },
+    inputRow: {
+      flexDirection: "row",
+      alignItems: "baseline",
+      marginTop: 8,
+      gap: 6,
+    },
+    input: {
+      fontSize: 48,
+      fontWeight: "800",
+      color: c.text,
+      minWidth: 120,
+      textAlign: "center",
+      paddingVertical: 4,
+      borderBottomWidth: 2,
+      borderBottomColor: brand.green,
+      fontVariant: ["tabular-nums"],
+    },
+    unit: {
+      fontSize: 20,
+      fontWeight: "700",
+      color: c.textMuted,
+    },
+    save: {
+      marginTop: 22,
+      backgroundColor: brand.green,
+      borderRadius: 22,
+      paddingVertical: 11,
+      paddingHorizontal: 40,
+    },
+    saveText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "700",
+    },
+  })

@@ -30,6 +30,8 @@ const initialState = {
   workoutStartTime: null,
   restStartTime: null,
   restDuration: null,
+  // When a rest ran out by itself (not skipped): the workout screen flashes "Rest is over"
+  restOverAt: null,
 }
 
 function workoutReducer(state, action) {
@@ -72,6 +74,8 @@ function workoutReducer(state, action) {
       return { ...state, restStartTime: action.payload }
     case "SET_REST_DURATION":
       return { ...state, restDuration: action.payload }
+    case "SET_REST_OVER":
+      return { ...state, restOverAt: action.payload }
     default:
       return state
   }
@@ -225,6 +229,7 @@ export function WorkoutProvider({ children }) {
             dispatch({ type: "SET_REST_START_TIME", payload: null })
             dispatch({ type: "SET_REST_DURATION", payload: null })
             restNotificationId.current = null
+            dispatch({ type: "SET_REST_OVER", payload: Date.now() })
             Vibration.vibrate([0, 500, 250, 500, 250, 500])
             clearRestTimerData()
           } else {
@@ -567,6 +572,7 @@ export function WorkoutProvider({ children }) {
     dispatch({ type: "SET_WORKOUT_START_TIME", payload: null })
     dispatch({ type: "SET_REST_START_TIME", payload: null })
     dispatch({ type: "SET_REST_DURATION", payload: null })
+    dispatch({ type: "SET_REST_OVER", payload: null })
 
     saveActiveWorkout(null)
     saveWorkoutRunning(false)
@@ -585,6 +591,16 @@ export function WorkoutProvider({ children }) {
     saveActiveWorkout(live)
     pushLiveSession(live)
   }
+
+  // Throws the running workout away (nothing goes to history; the live session is deleted)
+  const discardWorkout = () => {
+    pauseWorkout()
+    setWorkoutTimer(0)
+    setActiveWorkout(null)
+    dispatch({ type: "SET_REST_OVER", payload: null })
+  }
+
+  const clearRestOver = () => dispatch({ type: "SET_REST_OVER", payload: null })
 
   const setWorkoutTimer = (time) => {
     if (typeof time === "number" && !isNaN(time)) {
@@ -608,6 +624,7 @@ export function WorkoutProvider({ children }) {
       dispatch({ type: "SET_RESTING", payload: true })
       dispatch({ type: "SET_REST_START_TIME", payload: startTime })
       dispatch({ type: "SET_REST_DURATION", payload: duration })
+      dispatch({ type: "SET_REST_OVER", payload: null })
 
       // Save rest state
       AsyncStorage.multiSet([
@@ -697,6 +714,8 @@ export function WorkoutProvider({ children }) {
         startWorkout,
         pauseWorkout,
         finishWorkout,
+        discardWorkout,
+        clearRestOver,
         updateActiveWorkout,
         setWorkoutTimer,
         getLastWorkoutSession,

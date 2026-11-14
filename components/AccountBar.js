@@ -3,11 +3,12 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert } fr
 import { Ionicons } from "@expo/vector-icons"
 import { signInWithGoogle, signOut, useAuthUser } from "../lib/auth"
 import { useWorkout } from "../context/WorkoutContext"
-import { useThemedStyles } from "../lib/theme"
+import { useThemedStyles, useTheme } from "../lib/theme"
 
 // Shows who is signed in, or a Google sign-in button while the account is still anonymous
 export default function AccountBar() {
   const styles = useThemedStyles(makeStyles)
+  const theme = useTheme().colors
   const user = useAuthUser()
   const { syncWithCloud, clearLocalData } = useWorkout()
   const [busy, setBusy] = useState(false)
@@ -64,7 +65,7 @@ export default function AccountBar() {
 
   return (
     <TouchableOpacity style={[styles.bar, styles.signInBar]} onPress={handleSignIn} disabled={busy}>
-      {busy ? <ActivityIndicator color="#2563eb" /> : <Ionicons name="logo-google" size={18} color="#2563eb" />}
+      {busy ? <ActivityIndicator color={theme.primary} /> : <Ionicons name="logo-google" size={18} color={theme.primary} />}
       <Text style={[styles.text, styles.signInText]}>Sign in with Google to sync with the watch</Text>
     </TouchableOpacity>
   )
@@ -75,7 +76,7 @@ const makeStyles = (c) => StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: c.card,
-    borderRadius: 12,
+    borderRadius: 22,
     paddingVertical: 10,
     paddingHorizontal: 14,
     gap: 8,

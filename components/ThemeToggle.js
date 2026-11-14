@@ -41,7 +41,7 @@ const makeStyles = (c) =>
       flexDirection: "row",
       alignItems: "center",
       backgroundColor: c.card,
-      borderRadius: 12,
+      borderRadius: 22,
       borderWidth: 1,
       borderColor: c.border,
       paddingVertical: 8,
@@ -69,7 +69,7 @@ const makeStyles = (c) =>
       borderRadius: 8,
     },
     selectedSegment: {
-      backgroundColor: "#2563eb",
+      backgroundColor: c.primary,
     },
     segmentText: {
       fontSize: 13,

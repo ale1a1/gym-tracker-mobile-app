@@ -8,7 +8,7 @@ import VideoButton from '../components/VideoButton'
 import AlternativesBox from '../components/AlternativesBox'
 import HistoryModal from '../components/HistoryModal'
 import { workoutToForm, formToWorkout, formatWeight } from '../lib/workoutForm'
-import { useThemedStyles, useTheme } from "../lib/theme"
+import { brand, useThemedStyles, useTheme } from "../lib/theme"
 
 export default function ViewWorkoutScreen({ route, navigation }) {
   const styles = useThemedStyles(makeStyles)
@@ -161,19 +161,19 @@ export default function ViewWorkoutScreen({ route, navigation }) {
           {!isEditing ? (
             <>
               <TouchableOpacity onPress={() => startEditing()} style={styles.headerButton}>
-                <Ionicons name="pencil" size={20} color="#fff" />
+                <Ionicons name="pencil" size={20} color={theme.headerText} />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleDelete} style={styles.headerButton}>
-                <Ionicons name="trash-outline" size={20} color="#fff" />
+                <Ionicons name="trash-outline" size={20} color={brand.red} />
               </TouchableOpacity>
             </>
           ) : (
             <>
               <TouchableOpacity onPress={handleCancel} style={styles.headerButton}>
-                <Ionicons name="close" size={22} color="#fff" />
+                <Ionicons name="close" size={22} color={theme.headerText} />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleSave} style={styles.headerButton}>
-                <Ionicons name="checkmark" size={22} color="#fff" />
+                <Ionicons name="checkmark" size={22} color={brand.green} />
               </TouchableOpacity>
             </>
           )}
@@ -310,14 +310,14 @@ const makeStyles = (c) => StyleSheet.create({
   },
   workoutCard: {
     backgroundColor: c.card,
-    borderRadius: 12,
+    borderRadius: 22,
     padding: 16,
     marginBottom: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 0,
   },
   workoutTitle: {
     fontSize: 24,
@@ -351,7 +351,7 @@ const makeStyles = (c) => StyleSheet.create({
     backgroundColor: c.infoBg,
     borderColor: c.infoBorder,
     borderWidth: 1,
-    borderRadius: 12,
+    borderRadius: 22,
     paddingVertical: 12,
     paddingHorizontal: 16,
     marginBottom: 20,
@@ -373,14 +373,14 @@ const makeStyles = (c) => StyleSheet.create({
   },
   exerciseCard: {
     backgroundColor: c.card,
-    borderRadius: 12,
+    borderRadius: 22,
     padding: 16,
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0,
     shadowRadius: 4,
-    elevation: 3,
+    elevation: 0,
   },
   exerciseHeader: {
     flexDirection: 'row',
@@ -388,7 +388,7 @@ const makeStyles = (c) => StyleSheet.create({
     marginBottom: 8,
   },
   exerciseNumber: {
-    backgroundColor: '#2563eb',
+    backgroundColor: c.primary,
     color: '#fff',
     width: 28,
     height: 28,
@@ -427,9 +427,9 @@ const makeStyles = (c) => StyleSheet.create({
     flex: 1,
   },
   saveButton: {
-    backgroundColor: '#2563eb',
+    backgroundColor: c.primary,
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 22,
     alignItems: 'center',
     marginBottom: 48,
   },

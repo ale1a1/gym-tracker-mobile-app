@@ -73,7 +73,7 @@ const makeStyles = (c) =>
       borderWidth: 1,
       borderColor: c.infoBorder,
       borderStyle: "dashed",
-      borderRadius: 12,
+      borderRadius: 22,
       padding: 8,
       gap: 8,
     },

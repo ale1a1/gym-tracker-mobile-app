@@ -1,231 +1,263 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native"
+import { useLayoutEffect, useState } from "react"
+import { View, Text, StyleSheet, FlatList, TouchableOpacity } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
 import AccountBar from "../components/AccountBar"
 import ThemeToggle from "../components/ThemeToggle"
-import { useThemedStyles } from "../lib/theme"
+import HistoryModal from "../components/HistoryModal"
+import EndWorkoutDialog from "../components/EndWorkoutDialog"
+import { brand, useTheme, useThemedStyles } from "../lib/theme"
+import { formatClock } from "../lib/time"
 
+// Home = your workouts, like the watch: tap a card (or ▶) to start it, history and edit beside it.
+// The running workout is the green card.
 export default function HomeScreen({ navigation }) {
   const styles = useThemedStyles(makeStyles)
+  const theme = useTheme().colors
   const {
     workouts,
+    workoutHistory,
     activeWorkout,
     workoutTimer,
     restTimer,
     isResting,
-    restType,
     isWorkoutRunning,
-    pauseWorkout,
-    startWorkout,
-    setActiveWorkout,
-    setWorkoutTimer,
+    finishWorkout,
+    discardWorkout,
   } = useWorkout()
 
-  const formatTimerTime = (seconds) => {
-    if (typeof seconds !== "number" || isNaN(seconds)) return "00:00"
-    const mins = Math.floor(seconds / 60)
-    const secs = seconds % 60
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`
+  const [historyFor, setHistoryFor] = useState(null)
+  const [switchTo, setSwitchTo] = useState(null) // workout tapped while another one is running
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate("CreateWorkout")}>
+          <Ionicons name="add" size={24} color="#fff" />
+        </TouchableOpacity>
+      ),
+    })
+  })
+
+  const lastDone = (workoutId) => {
+    const last = (workoutHistory || [])
+      .filter((h) => h && h.originalId === workoutId && h.completedAt)
+      .sort((a, b) => new Date(b.completedAt) - new Date(a.completedAt))[0]
+    return last ? new Date(last.completedAt).toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : null
   }
 
-  const goToActiveWorkout = () => navigation.navigate("ActiveWorkout", { workout: activeWorkout })
-
-  const handleResumeWorkout = () => {
-    startWorkout()
-    goToActiveWorkout()
+  const openWorkout = (workout) => {
+    const running = activeWorkout && activeWorkout.id === workout.id
+    if (running) navigation.navigate("ActiveWorkout", { workout: activeWorkout })
+    else if (activeWorkout) setSwitchTo(workout)
+    else navigation.navigate("ActiveWorkout", { workout })
   }
 
-  const handleCancelWorkout = () => {
-    Alert.alert("Cancel Workout", "Are you sure you want to cancel the current workout? All progress will be lost.", [
-      { text: "Keep Going", style: "cancel" },
-      {
-        text: "Cancel Workout",
-        style: "destructive",
-        onPress: () => {
-          pauseWorkout()
-          setWorkoutTimer(0)
-          setActiveWorkout(null)
-        },
-      },
-    ])
+  const endAndStart = (finish) => {
+    const next = switchTo
+    setSwitchTo(null)
+    if (finish) finishWorkout(activeWorkout)
+    else discardWorkout()
+    navigation.navigate("ActiveWorkout", { workout: next })
+  }
+
+  const renderWorkout = ({ item }) => {
+    const running = activeWorkout && activeWorkout.id === item.id
+    const last = lastDone(item.id)
+    const status = running
+      ? isResting
+        ? `Resting ${formatClock(restTimer)}`
+        : `${isWorkoutRunning ? "In progress" : "Paused"} · ${formatClock(workoutTimer)}`
+      : `${item.exercises.length} exercises${last ? ` · ${last}` : ""}`
+
+    return (
+      <TouchableOpacity
+        style={[styles.card, running && styles.runningCard]}
+        onPress={() => openWorkout(item)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.cardText}>
+          <Text style={[styles.cardTitle, running && styles.runningText]} numberOfLines={2}>
+            {item.title}
+          </Text>
+          <Text style={[styles.cardSubtitle, running && styles.runningText]} numberOfLines={1}>
+            {status}
+          </Text>
+        </View>
+
+        {/* ▶ start; the running workout has none (its green card already opens it) */}
+        {!running && (
+          <TouchableOpacity style={[styles.round, { backgroundColor: brand.green }]} onPress={() => openWorkout(item)}>
+            <Ionicons name="play" size={22} color="#fff" style={styles.playIcon} />
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[styles.round, { backgroundColor: brand.softBlue }, running && styles.whiteBorder]}
+          onPress={() => setHistoryFor(item)}
+        >
+          <Ionicons name="time-outline" size={22} color={brand.navy} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.round, styles.editRound, running && styles.runningEditRound]}
+          onPress={() => navigation.navigate("ViewWorkout", { workout: item })}
+        >
+          <Ionicons name="create-outline" size={20} color={running ? "#fff" : theme.textSecondary} />
+        </TouchableOpacity>
+      </TouchableOpacity>
+    )
   }
 
   return (
     <View style={styles.container}>
-      <AccountBar />
-
-      {activeWorkout && (
-        <TouchableOpacity
-          style={[styles.activeBanner, !isWorkoutRunning && styles.pausedBanner]}
-          onPress={goToActiveWorkout}
-          activeOpacity={0.8}
-        >
-          <View style={styles.activeBannerTop}>
-            <Ionicons
-              name={isWorkoutRunning ? "play-circle" : "pause-circle"}
-              size={22}
-              color={isWorkoutRunning ? "#10b981" : "#f59e0b"}
-            />
-            <Text style={styles.activeBannerTitle} numberOfLines={1}>
-              {activeWorkout.title}
-            </Text>
-            <Text style={[styles.activeBannerTime, !isWorkoutRunning && styles.pausedText]}>
-              {formatTimerTime(workoutTimer)}
-            </Text>
-          </View>
-          {isResting && (
-            <Text style={styles.restText}>
-              {restType === "set" ? "Set Rest" : "Exercise Rest"} {formatTimerTime(restTimer)}
-            </Text>
-          )}
-          <View style={styles.activeBannerButtons}>
-            {isWorkoutRunning ? (
-              <TouchableOpacity style={[styles.smallButton, styles.pauseButton]} onPress={pauseWorkout}>
-                <Ionicons name="pause" size={16} color="#fff" />
-                <Text style={styles.smallButtonText}>Pause</Text>
-              </TouchableOpacity>
-            ) : (
-              <TouchableOpacity style={[styles.smallButton, styles.resumeButton]} onPress={handleResumeWorkout}>
-                <Ionicons name="play" size={16} color="#fff" />
-                <Text style={styles.smallButtonText}>Resume</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity style={[styles.smallButton, styles.cancelButton]} onPress={handleCancelWorkout}>
-              <Ionicons name="close" size={16} color="#fff" />
-              <Text style={styles.smallButtonText}>Cancel</Text>
+      <FlatList
+        data={workouts}
+        renderItem={renderWorkout}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyEmoji}>💪</Text>
+            <Text style={styles.emptyTitle}>No workouts yet</Text>
+            <Text style={styles.emptyText}>Create your first one, it shows up on the watch too.</Text>
+            <TouchableOpacity style={styles.emptyButton} onPress={() => navigation.navigate("CreateWorkout")}>
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.emptyButtonText}>Create workout</Text>
             </TouchableOpacity>
           </View>
-        </TouchableOpacity>
-      )}
+        }
+        ListFooterComponent={
+          <View style={styles.footer}>
+            <AccountBar />
+            <ThemeToggle />
+          </View>
+        }
+      />
 
-      <TouchableOpacity style={[styles.tile, styles.doTile]} onPress={() => navigation.navigate("Workouts")}>
-        <Ionicons name="barbell" size={48} color="#fff" />
-        <Text style={styles.tileTitle}>Do Workout</Text>
-        <Text style={styles.tileSubtitle}>
-          {workouts.length === 1 ? "1 workout" : `${workouts.length} workouts`}
-        </Text>
-      </TouchableOpacity>
+      {historyFor && <HistoryModal visible onClose={() => setHistoryFor(null)} workout={historyFor} />}
 
-      <TouchableOpacity style={[styles.tile, styles.createTile]} onPress={() => navigation.navigate("CreateWorkout")}>
-        <Ionicons name="add-circle" size={48} color="#2563eb" />
-        <Text style={[styles.tileTitle, styles.createTileTitle]}>Create Workout</Text>
-        <Text style={[styles.tileSubtitle, styles.createTileSubtitle]}>Exercises, weights, machine settings, videos</Text>
-      </TouchableOpacity>
-
-      <ThemeToggle />
+      <EndWorkoutDialog
+        visible={!!switchTo && !!activeWorkout}
+        title={`${activeWorkout?.title} is in progress`}
+        subtitle={`End it to start ${switchTo?.title}`}
+        onFinish={() => endAndStart(true)}
+        onDiscard={() => endAndStart(false)}
+        onContinue={() => {
+          setSwitchTo(null)
+          navigation.navigate("ActiveWorkout", { workout: activeWorkout })
+        }}
+      />
     </View>
   )
 }
 
-const makeStyles = (c) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: c.background,
-    padding: 16,
-    gap: 16,
-  },
-  tile: {
-    flex: 1,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  doTile: {
-    backgroundColor: "#2563eb",
-  },
-  createTile: {
-    backgroundColor: c.card,
-    borderWidth: 2,
-    borderColor: c.infoBorder,
-  },
-  tileTitle: {
-    fontSize: 26,
-    fontWeight: "700",
-    color: "#fff",
-    marginTop: 12,
-  },
-  createTileTitle: {
-    color: c.text,
-  },
-  tileSubtitle: {
-    fontSize: 14,
-    color: "#bfdbfe",
-    marginTop: 6,
-    textAlign: "center",
-  },
-  createTileSubtitle: {
-    color: c.textMuted,
-  },
-  activeBanner: {
-    backgroundColor: c.successBg,
-    borderColor: "#10b981",
-    borderWidth: 2,
-    borderRadius: 16,
-    padding: 14,
-  },
-  pausedBanner: {
-    backgroundColor: c.warningBg,
-    borderColor: "#f59e0b",
-  },
-  activeBannerTop: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  activeBannerTitle: {
-    flex: 1,
-    fontSize: 17,
-    fontWeight: "700",
-    color: c.text,
-    marginLeft: 8,
-  },
-  activeBannerTime: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#10b981",
-    fontFamily: "monospace",
-  },
-  pausedText: {
-    color: "#f59e0b",
-  },
-  restText: {
-    fontSize: 13,
-    color: c.warningText,
-    fontWeight: "600",
-    marginTop: 6,
-    fontFamily: "monospace",
-  },
-  activeBannerButtons: {
-    flexDirection: "row",
-    gap: 8,
-    marginTop: 12,
-  },
-  smallButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 10,
-    borderRadius: 8,
-  },
-  pauseButton: {
-    backgroundColor: "#f59e0b",
-  },
-  resumeButton: {
-    backgroundColor: "#10b981",
-  },
-  cancelButton: {
-    backgroundColor: "#ef4444",
-  },
-  smallButtonText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
-})
+const makeStyles = (c) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: c.background,
+    },
+    list: {
+      padding: 16,
+      paddingTop: 8,
+      gap: 12,
+      flexGrow: 1,
+    },
+    addButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      backgroundColor: brand.green,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    card: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: c.card,
+      borderRadius: 28,
+      paddingVertical: 14,
+      paddingLeft: 22,
+      paddingRight: 12,
+      gap: 8,
+    },
+    runningCard: {
+      backgroundColor: brand.green,
+    },
+    cardText: {
+      flex: 1,
+      marginRight: 4,
+    },
+    cardTitle: {
+      fontSize: 18,
+      fontWeight: "800",
+      color: c.text,
+    },
+    cardSubtitle: {
+      fontSize: 13,
+      color: c.textMuted,
+      marginTop: 3,
+      fontVariant: ["tabular-nums"],
+    },
+    runningText: {
+      color: "#fff",
+    },
+    round: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    playIcon: {
+      marginLeft: 3,
+    },
+    whiteBorder: {
+      borderWidth: 2,
+      borderColor: "#fff",
+    },
+    editRound: {
+      backgroundColor: c.subtle,
+    },
+    runningEditRound: {
+      backgroundColor: "rgba(255,255,255,0.22)",
+    },
+    footer: {
+      marginTop: 20,
+      gap: 12,
+    },
+    empty: {
+      alignItems: "center",
+      paddingVertical: 60,
+      paddingHorizontal: 24,
+    },
+    emptyEmoji: {
+      fontSize: 64,
+    },
+    emptyTitle: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: c.text,
+      marginTop: 12,
+    },
+    emptyText: {
+      fontSize: 15,
+      color: c.textMuted,
+      textAlign: "center",
+      marginTop: 6,
+    },
+    emptyButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 6,
+      backgroundColor: brand.green,
+      borderRadius: 24,
+      paddingVertical: 12,
+      paddingHorizontal: 22,
+      marginTop: 20,
+    },
+    emptyButtonText: {
+      color: "#fff",
+      fontSize: 16,
+      fontWeight: "700",
+    },
+  })

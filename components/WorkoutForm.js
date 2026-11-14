@@ -117,7 +117,7 @@ export default function WorkoutForm({ form, onChange, focusExerciseId, onFocusLa
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Exercises</Text>
           <TouchableOpacity style={styles.addExerciseButton} onPress={addExercise}>
-            <Ionicons name="add" size={20} color="#2563eb" />
+            <Ionicons name="add" size={20} color={theme.primary} />
             <Text style={styles.addExerciseText}>Add Exercise</Text>
           </TouchableOpacity>
         </View>
@@ -475,11 +475,11 @@ const makeStyles = (c) => StyleSheet.create({
   },
   focusedCard: {
     borderWidth: 2,
-    borderColor: "#2563eb",
+    borderColor: c.primary,
   },
   exerciseCard: {
     backgroundColor: c.card,
-    borderRadius: 12,
+    borderRadius: 22,
     padding: 16,
     marginBottom: 12,
     shadowColor: "#000",

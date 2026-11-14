@@ -160,7 +160,7 @@ const makeStyles = (c) =>
       backgroundColor: c.subtle,
     },
     chipSelected: {
-      backgroundColor: "#2563eb",
+      backgroundColor: c.primary,
     },
     chipText: {
       fontSize: 13,
@@ -204,7 +204,7 @@ const makeStyles = (c) =>
     },
     entry: {
       backgroundColor: c.card,
-      borderRadius: 12,
+      borderRadius: 22,
       borderWidth: 1,
       borderColor: c.border,
       padding: 12,
