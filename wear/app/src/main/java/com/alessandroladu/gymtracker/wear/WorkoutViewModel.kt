@@ -49,6 +49,7 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
     // Saves run one at a time, in order, so the database always ends with the latest state
     private val saveLock = Mutex()
     private var restJob: Job? = null
+    private var serviceRunning = false
 
     private val appContext get() = getApplication<Application>()
 
@@ -77,11 +78,20 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             state.map { s -> Triple(s.live?.let { Triple(it.workout.title, it.startedAtMillis + it.pausedTotalMillis, it.paused) }, s.restEndsAtMillis, s.restLabel) }
                 .distinctUntilChanged()
                 .collect { (workout, restEndsAt, restLabel) ->
+                    // Foreground service while a workout runs (started once, while the app is open)
+                    if (workout == null && serviceRunning) {
+                        WorkoutService.stop(appContext)
+                        serviceRunning = false
+                    }
                     when {
                         workout == null -> WorkoutAlerts.hideOngoing(appContext)
                         workout.third -> WorkoutAlerts.showOngoing(appContext, workout.first, "Paused", 0L, countDown = false)
                         restEndsAt != null -> WorkoutAlerts.showOngoing(appContext, workout.first, restLabel, restEndsAt, countDown = true)
                         else -> WorkoutAlerts.showOngoing(appContext, workout.first, workout.first, workout.second, countDown = false)
+                    }
+                    if (workout != null && !serviceRunning) {
+                        WorkoutService.start(appContext)
+                        serviceRunning = true
                     }
                 }
         }
@@ -326,6 +336,12 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
 
     fun clearRestOver() = _state.update { it.copy(restOverAtMillis = null) }
 
+    // Opened by the "rest is over" alarm: show the flash now
+    fun showRestOver() {
+        restJob?.cancel()
+        _state.update { it.copy(restEndsAtMillis = null, restOverAtMillis = System.currentTimeMillis()) }
+    }
+
     fun dismissFinishPrompt() = _state.update { it.copy(finishPrompt = false) }
 
     fun skipRest() {
@@ -451,7 +467,11 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
         val alarmScheduled = WorkoutAlerts.scheduleRestAlarm(appContext, endsAt)
         restJob = viewModelScope.launch {
             delay((endsAt - System.currentTimeMillis()).coerceAtLeast(0))
-            _state.update { it.copy(restEndsAtMillis = null, restOverAtMillis = System.currentTimeMillis()) }
+            // Flash only when on time: in the background this wakes up late (when the app reopens);
+            // the alarm already told you, so coming back mustn't show a stale "Rest is over"
+            val now = System.currentTimeMillis()
+            val onTime = now - endsAt < 3_000
+            _state.update { it.copy(restEndsAtMillis = null, restOverAtMillis = if (onTime) now else null) }
             if (!alarmScheduled) vibrate()
         }
     }

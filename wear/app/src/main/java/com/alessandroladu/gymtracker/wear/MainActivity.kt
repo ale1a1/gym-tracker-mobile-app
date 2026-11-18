@@ -2,6 +2,7 @@ package com.alessandroladu.gymtracker.wear
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -90,6 +91,7 @@ class MainActivity : ComponentActivity() {
         if (Build.VERSION.SDK_INT >= 33) {
             requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 1)
         }
+        handleRestOver(intent)
         setContent {
             val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -105,6 +107,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleRestOver(intent)
+    }
+
+    // Opened by the rest alarm: wake the screen (also over the watch face) and flash "Rest is over"
+    private fun handleRestOver(intent: Intent?) {
+        if (intent?.getBooleanExtra(WorkoutAlerts.EXTRA_REST_OVER, false) != true) return
+        intent.removeExtra(WorkoutAlerts.EXTRA_REST_OVER)
+        setShowWhenLocked(true)
+        setTurnScreenOn(true)
+        viewModel.showRestOver()
     }
 }
 
@@ -559,7 +575,8 @@ private fun ActiveWorkoutScreen(
         }
 
         val restEndsAt = state.restEndsAtMillis
-        if (restEndsAt != null) {
+        // A rest that already ran out (e.g. the app was in the background) isn't shown as "0:00 · Skip"
+        if (restEndsAt != null && restEndsAt > now) {
             RestBadge(
                 label = state.restLabel,
                 secondsLeft = ((restEndsAt - now) / 1000).coerceAtLeast(0),

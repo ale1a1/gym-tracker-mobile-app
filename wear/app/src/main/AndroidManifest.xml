@@ -9,6 +9,11 @@
     <!-- Rest alarm at the exact second the rest ends -->
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <!-- Rest over with the app in the background: bring the app to the front, like an alarm clock -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Keeps the app active during a workout so the rest alarm can ring and vibrate -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:allowBackup="true"
@@ -35,5 +40,14 @@
         </activity>
 
         <receiver android:name=".RestAlarmReceiver" android:exported="false" />
+
+        <service
+            android:name=".WorkoutService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Workout in progress: rings and vibrates when a rest timer ends" />
+        </service>
     </application>
 </manifest>

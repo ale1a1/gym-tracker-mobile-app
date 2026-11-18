@@ -35,9 +35,15 @@ import androidx.wear.ongoing.Status
 // - a rest alarm scheduled with AlarmManager: vibrates and rings when the rest ends, even if the
 //   app is in the background or the screen is off
 object WorkoutAlerts {
-    private const val ONGOING_CHANNEL = "workout-ongoing"
-    private const val REST_CHANNEL = "rest-alarm"
-    private const val ONGOING_ID = 4310
+    const val ONGOING_CHANNEL = "workout-ongoing"
+    // v2: the system itself rings and vibrates (an app in the background is muted and can't vibrate)
+    private const val REST_CHANNEL = "rest-alarm-2"
+    private const val OLD_REST_CHANNEL = "rest-alarm"
+    const val EXTRA_REST_OVER = "rest_over"
+    const val ONGOING_ID = 4310
+
+    // Latest workout timer notification, reused by WorkoutService when it (re)starts
+    @Volatile var lastOngoing: android.app.Notification? = null
     private const val REST_ID = 4311
     private const val REST_REQUEST = 4312
 
@@ -48,6 +54,7 @@ object WorkoutAlerts {
 
     fun createChannels(context: Context) {
         val manager = context.getSystemService(NotificationManager::class.java)
+        manager.deleteNotificationChannel(OLD_REST_CHANNEL)
         manager.createNotificationChannel(
             NotificationChannel(ONGOING_CHANNEL, "Workout timer", NotificationManager.IMPORTANCE_DEFAULT).apply {
                 setSound(null, null)
@@ -58,7 +65,9 @@ object WorkoutAlerts {
         manager.createNotificationChannel(
             NotificationChannel(REST_CHANNEL, "Rest finished (alarm)", NotificationManager.IMPORTANCE_HIGH).apply {
                 enableVibration(true)
-                vibrationPattern = longArrayOf(0, 500, 250, 500, 250, 500)
+                vibrationPattern = longArrayOf(0, 700, 200, 700, 200, 900)
+                setBypassDnd(true)
+                lockscreenVisibility = android.app.Notification.VISIBILITY_PUBLIC
                 setSound(
                     RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION),
                     AudioAttributes.Builder()
@@ -104,9 +113,9 @@ object WorkoutAlerts {
             // passing wall time made the watch face show 00:00 or a huge number
             val baseOnUptimeClock = SystemClock.elapsedRealtime() + (baseTimeMillis - System.currentTimeMillis())
             val timer = if (countDown) Status.TimerPart(baseOnUptimeClock) else Status.StopwatchPart(baseOnUptimeClock)
+            // Only the time next to the bicep icon: a label ("Set rest · ...") got the seconds cut off
             Status.Builder()
-                .addTemplate("#label# · #time#")
-                .addPart("label", Status.TextPart(text))
+                .addTemplate("#time#")
                 .addPart("time", timer)
                 .build()
         } else {
@@ -120,10 +129,13 @@ object WorkoutAlerts {
             .build()
             .apply(context)
 
-        runCatching { NotificationManagerCompat.from(context).notify(ONGOING_ID, builder.build()) }
+        val notification = builder.build()
+        lastOngoing = notification
+        runCatching { NotificationManagerCompat.from(context).notify(ONGOING_ID, notification) }
     }
 
     fun hideOngoing(context: Context) {
+        lastOngoing = null
         NotificationManagerCompat.from(context).cancel(ONGOING_ID)
     }
 
@@ -214,12 +226,24 @@ object WorkoutAlerts {
         }
     }
 
-    // Visual "Rest is over" card; sound and vibration come from alertRestFinished
+    // Opens the app on the "Rest is over" flash (alarm-style, also over the watch face)
+    private fun restOverIntent(context: Context) = PendingIntent.getActivity(
+        context,
+        1,
+        Intent(context, MainActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            .putExtra(EXTRA_REST_OVER, true),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
+    // "Rest is over": the notification rings and vibrates through the alarm channel (played by the
+    // system, so it works with the app in the background) and brings the app to the front
     fun showRestFinished(context: Context) {
         if (!canNotify(context)) return
         val notification = NotificationCompat.Builder(context, REST_CHANNEL)
-            .setSilent(true)
             .setSmallIcon(R.drawable.ic_stat_bicep)
+            .setVibrate(longArrayOf(0, 700, 200, 700, 200, 900))
+            .setFullScreenIntent(restOverIntent(context), true)
             .setLargeIcon(appIcon(context))
             .setContentTitle("Rest is over")
             .setContentText("Back to work")
@@ -227,7 +251,7 @@ object WorkoutAlerts {
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setAutoCancel(true)
             .setTimeoutAfter(30_000)
-            .setContentIntent(openAppIntent(context))
+            .setContentIntent(restOverIntent(context))
             .build()
         runCatching { NotificationManagerCompat.from(context).notify(REST_ID, notification) }
     }
