@@ -534,12 +534,14 @@ private fun ActiveWorkoutScreen(
                 if (exercise.increaseSuggested) {
                     item {
                         // Small orange pill (last time every set hit the target); tap to set the new weight
+                        // Thin pill with room above and below, so it stands apart from the weight and the sets
                         Row(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(12.dp))
+                                .padding(top = 6.dp, bottom = 8.dp)
+                                .clip(RoundedCornerShape(10.dp))
                                 .background(Orange)
                                 .clickable { onEditWeight(exerciseIndex) }
-                                .padding(start = 6.dp, end = 10.dp, top = 3.dp, bottom = 3.dp),
+                                .padding(start = 6.dp, end = 10.dp, top = 1.dp, bottom = 1.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(2.dp),
                         ) {
@@ -547,9 +549,9 @@ private fun ActiveWorkoutScreen(
                                 AppIcons.ArrowUpward,
                                 contentDescription = null,
                                 tint = Color(0xFF1F1300),
-                                modifier = Modifier.size(20.dp),
+                                modifier = Modifier.size(14.dp),
                             )
-                            Text("Increase the weight today", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
+                            Text("Increase the weight today", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
                         }
                     }
                 }
