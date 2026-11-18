@@ -742,10 +742,10 @@ private fun BoxScope.BottomTimers(
                         drag += amount
                     }
                 }
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF1C1C1E))
-                .border(1.5.dp, Color.White, RoundedCornerShape(14.dp))
-                .padding(horizontal = 14.dp, vertical = 1.dp),
+                .border(1.dp, Color.White, RoundedCornerShape(16.dp))
+                .padding(horizontal = 20.dp, vertical = 4.dp),
         )
         else -> Row(
             modifier = bottom,
@@ -781,10 +781,10 @@ private fun WorkoutBar(
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(20.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(Color(0xFF1C1C1E))
-            .border(1.5.dp, Color.White, RoundedCornerShape(20.dp))
-            .padding(start = 12.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
+            .border(1.dp, Color.White, RoundedCornerShape(22.dp))
+            .padding(start = 16.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
@@ -823,7 +823,7 @@ private fun RoundIconButton(onClick: () -> Unit, content: @Composable () -> Unit
             .size(36.dp)
             .clip(CircleShape)
             .background(Color(0xFF26262A))
-            .border(1.5.dp, Color.White, CircleShape)
+            .border(1.dp, Color.White, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -876,7 +876,7 @@ private fun DropTarget(label: String, color: Color, highlighted: Boolean, onPlac
             .onGloballyPositioned { onPlaced(it.boundsInRoot()) }
             .clip(RoundedCornerShape(20.dp))
             .background(color)
-            .border(if (highlighted) 3.dp else 1.5.dp, Color.White, RoundedCornerShape(20.dp))
+            .border(if (highlighted) 2.dp else 1.dp, Color.White, RoundedCornerShape(20.dp))
             .padding(horizontal = 14.dp, vertical = 6.dp),
     )
 }
