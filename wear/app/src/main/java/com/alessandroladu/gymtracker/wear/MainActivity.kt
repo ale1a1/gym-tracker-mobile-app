@@ -281,7 +281,8 @@ private fun WorkoutListScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp), // a little space between workouts
             modifier = Modifier.fillMaxWidth(),
         ) {
-            item { ListHeader { Text("Workouts", fontSize = 20.sp, fontWeight = FontWeight.Bold) } }
+            // Title close to the top and to the list (no ListHeader padding)
+            item { Text("Workouts", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp)) }
             state.error?.let { error -> item { ErrorText(error) { viewModel.clearError() } } }
             // Waiting for the cloud: a small spinner, nothing else (no "No workouts" flash)
             val waiting = !state.workoutsLoaded && state.error == null
@@ -308,7 +309,7 @@ private fun WorkoutListScreen(
                             .clip(RoundedCornerShape(26.dp))
                             .background(if (running) Green else Color(0xFF26262A))
                             .clickable(enabled = !state.loading) { open() }
-                            .padding(start = 18.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                            .padding(start = 18.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
@@ -325,22 +326,22 @@ private fun WorkoutListScreen(
                         if (!running) {
                             Box(
                                 modifier = Modifier
-                                    .size(38.dp)
+                                    .size(34.dp)
                                     .clip(CircleShape)
                                     .background(Green)
                                     .clickable(enabled = !state.loading) { open() },
                                 contentAlignment = Alignment.Center,
                             ) {
-                                Icon(Icons.Filled.PlayArrow, contentDescription = "Start", tint = Color.White, modifier = Modifier.size(26.dp))
+                                Icon(Icons.Filled.PlayArrow, contentDescription = "Start", tint = Color.White, modifier = Modifier.size(23.dp))
                             }
                         }
                         Box(
-                            modifier = Modifier.size(38.dp).clip(CircleShape).background(SoftBlue)
+                            modifier = Modifier.size(34.dp).clip(CircleShape).background(SoftBlue)
                                 .then(if (running) Modifier.border(2.dp, Color.White, CircleShape) else Modifier)
                                 .clickable { onHistory(workout.id) },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Icon(AppIcons.History, contentDescription = "History", tint = Color(0xFF0B1F3A), modifier = Modifier.size(22.dp))
+                            Icon(AppIcons.History, contentDescription = "History", tint = Color(0xFF0B1F3A), modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -713,7 +714,10 @@ private fun BoxScope.BottomTimers(
     val dragging = drag != Offset.Zero
     val pointer = origin + drag
 
+    // Open workout bar where it is; countdown a bit lower; the small buttons right at the bottom edge
     val bottom = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
+    val countdownSpot = Modifier.align(Alignment.BottomCenter).padding(bottom = 4.dp)
+    val edge = Modifier.align(Alignment.BottomCenter)
     when {
         workoutOpen && !resting -> WorkoutBar(workoutSeconds, paused, onPauseToggle, onStop, onCollapse = { workoutOpen = false }, modifier = bottom)
         resting && !restHidden -> Text(
@@ -723,7 +727,7 @@ private fun BoxScope.BottomTimers(
             color = Orange,
             textAlign = TextAlign.Center,
             style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
-            modifier = bottom
+            modifier = countdownSpot
                 .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
                 .onGloballyPositioned { countdownCoords = it }
                 .pointerInput(restKey) {
@@ -752,7 +756,7 @@ private fun BoxScope.BottomTimers(
                 .padding(horizontal = 16.dp, vertical = 4.dp),
         )
         else -> Row(
-            modifier = bottom,
+            modifier = edge,
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

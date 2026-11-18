@@ -242,9 +242,13 @@ class WorkoutViewModel(application: Application) : AndroidViewModel(application)
             }
         } ?: return
         save(live)
-        // Done when every set is ticked, or when the very last set of the last exercise is ticked
-        // (even if a set was left unticked earlier): no rest, show the congratulations instead
-        val workoutComplete = startRest && (live.exercises.all { it.allDone } || isLastSetOfLastExercise)
+        // Done when every set is ticked, or when the last set of the last exercise is ticked and almost
+        // everything else is too (a forgotten set or two): no rest, show the congratulations instead.
+        // Doing the last exercise early doesn't end the workout.
+        val totalSets = live.exercises.sumOf { it.done.size }
+        val ticked = live.exercises.sumOf { ex -> ex.done.count { it } }
+        val mostlyDone = totalSets > 0 && ticked * 10 >= totalSets * 8
+        val workoutComplete = startRest && (live.exercises.all { it.allDone } || (isLastSetOfLastExercise && mostlyDone))
         if (workoutComplete) {
             _state.update { it.copy(finishPrompt = true) }
         } else if (startRest) {
