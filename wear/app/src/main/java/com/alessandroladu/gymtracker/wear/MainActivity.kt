@@ -744,6 +744,7 @@ private fun BoxScope.BottomTimers(
                 }
                 .clip(RoundedCornerShape(14.dp))
                 .background(Color(0xFF1C1C1E))
+                .border(1.5.dp, Color.White, RoundedCornerShape(14.dp))
                 .padding(horizontal = 14.dp, vertical = 1.dp),
         )
         else -> Row(
@@ -759,8 +760,8 @@ private fun BoxScope.BottomTimers(
     // Drop targets for the countdown, only while it is being dragged
     if (resting && !restHidden && dragging && !workoutOpen) {
         Row(
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 36.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 64.dp),
+            horizontalArrangement = Arrangement.spacedBy(26.dp),
         ) {
             DropTarget("Skip", Orange, highlighted = skipRect.contains(pointer), onPlaced = { skipRect = it })
             DropTarget("Hide", StepperGrey, highlighted = hideRect.contains(pointer), onPlaced = { hideRect = it })
@@ -782,6 +783,7 @@ private fun WorkoutBar(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .background(Color(0xFF1C1C1E))
+            .border(1.5.dp, Color.White, RoundedCornerShape(20.dp))
             .padding(start = 12.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -817,7 +819,12 @@ private fun WorkoutBar(
 @Composable
 private fun RoundIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF26262A)).clickable(onClick = onClick),
+        modifier = Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .background(Color(0xFF26262A))
+            .border(1.5.dp, Color.White, CircleShape)
+            .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
@@ -826,7 +833,7 @@ private fun RoundIconButton(onClick: () -> Unit, content: @Composable () -> Unit
 @Composable
 private fun MenuGlyph() {
     Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        repeat(3) { Box(Modifier.size(width = 13.dp, height = 2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White)) }
+        repeat(3) { Box(Modifier.size(width = 15.dp, height = 2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White)) }
     }
 }
 
@@ -841,7 +848,7 @@ private fun SpinningClock() {
         ),
         label = "hand",
     )
-    androidx.compose.foundation.Canvas(Modifier.size(18.dp)) {
+    androidx.compose.foundation.Canvas(Modifier.size(21.dp)) {
         val stroke = 2.dp.toPx()
         val radius = size.minDimension / 2 - stroke
         drawCircle(Orange, radius = radius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke))
@@ -862,15 +869,15 @@ private fun SpinningClock() {
 private fun DropTarget(label: String, color: Color, highlighted: Boolean, onPlaced: (Rect) -> Unit) {
     Text(
         label,
-        fontSize = 11.sp,
+        fontSize = 13.sp,
         fontWeight = FontWeight.Bold,
         color = if (color == Orange) Color(0xFF1F1300) else Color.White,
         modifier = Modifier
             .onGloballyPositioned { onPlaced(it.boundsInRoot()) }
             .clip(RoundedCornerShape(20.dp))
             .background(color)
-            .then(if (highlighted) Modifier.border(2.dp, Color.White, RoundedCornerShape(20.dp)) else Modifier)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+            .border(if (highlighted) 3.dp else 1.5.dp, Color.White, RoundedCornerShape(20.dp))
+            .padding(horizontal = 14.dp, vertical = 6.dp),
     )
 }
 
