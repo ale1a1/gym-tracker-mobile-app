@@ -23,6 +23,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.BoxScope
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -423,7 +433,7 @@ private fun ActiveWorkoutScreen(
     ScreenScaffold(scrollState = listState) { padding ->
         ScalingLazyColumn(
             state = listState,
-            contentPadding = padding.withBottomRoom().withTopRoom(50.dp),
+            contentPadding = padding.withBottomRoom(),
             autoCentering = null,
             verticalArrangement = Arrangement.spacedBy(2.dp),
             modifier = Modifier.fillMaxWidth(),
@@ -576,22 +586,18 @@ private fun ActiveWorkoutScreen(
             RestOverFlash(key = at, onFinished = { viewModel.clearRestOver() })
         }
 
-        val restEndsAt = state.restEndsAtMillis
-        // A rest that already ran out (e.g. the app was in the background) isn't shown as "0:00 · Skip"
-        if (restEndsAt != null && restEndsAt > now) {
-            RestBadge(
-                label = state.restLabel,
-                secondsLeft = ((restEndsAt - now) / 1000).coerceAtLeast(0),
-                onSkip = { viewModel.skipRest() },
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
-            )
-        } else if (state.restOverAtMillis == null) { // hidden while "Rest is over" flashes
-            WorkoutHeader(
-                elapsedSeconds = live.elapsedMillis(now) / 1000,
+        // Timers at the bottom, like a music mini player (hidden while "Rest is over" flashes).
+        // A rest that already ran out (e.g. the app was in the background) isn't shown as 0:00.
+        val restEndsAt = state.restEndsAtMillis?.takeIf { it > now }
+        if (state.restOverAtMillis == null) {
+            BottomTimers(
+                workoutSeconds = live.elapsedMillis(now) / 1000,
                 paused = live.paused,
+                restKey = restEndsAt,
+                restSecondsLeft = restEndsAt?.let { ((it - now) / 1000).coerceAtLeast(0) } ?: 0,
                 onPauseToggle = { if (live.paused) viewModel.resume() else viewModel.pause() },
                 onStop = { confirmEnd = true },
-                modifier = Modifier.align(Alignment.TopCenter).padding(top = 30.dp),
+                onSkipRest = { viewModel.skipRest() },
             )
         }
 
@@ -675,50 +681,203 @@ private fun WorkoutCompleteScreen(title: String, setsLeft: Int, onFinish: () -> 
     }
 }
 
-// Sticky header: workout time with round pause/play and stop buttons
+// Bottom of the workout screen, like a music mini player:
+// - no rest: a small ☰ button; tapped, it opens the slim workout bar (time, pause, stop)
+// - resting: just the countdown; tap it and Skip / Hide appear at the top, then drag the number onto one
+// - rest hidden: a spinning clock next to ☰; tap it to see the countdown again
 @Composable
-private fun WorkoutHeader(
+private fun BoxScope.BottomTimers(
+    workoutSeconds: Long,
+    paused: Boolean,
+    restKey: Long?, // when the rest ends; null = not resting
+    restSecondsLeft: Long,
+    onPauseToggle: () -> Unit,
+    onStop: () -> Unit,
+    onSkipRest: () -> Unit,
+) {
+    val resting = restKey != null
+    var workoutOpen by remember { mutableStateOf(false) }
+    // A new rest always starts visible
+    var restHidden by remember(restKey) { mutableStateOf(false) }
+    var targetsShown by remember(restKey) { mutableStateOf(false) }
+    // Dragging the countdown: where it started and how far it moved (root coordinates)
+    var drag by remember { mutableStateOf(Offset.Zero) }
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    var countdownCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+    var skipRect by remember { mutableStateOf(Rect.Zero) }
+    var hideRect by remember { mutableStateOf(Rect.Zero) }
+    val dragging = drag != Offset.Zero
+    val pointer = origin + drag
+
+    val bottom = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+    when {
+        workoutOpen -> WorkoutBar(workoutSeconds, paused, onPauseToggle, onStop, onCollapse = { workoutOpen = false }, modifier = bottom)
+        resting && !restHidden -> Text(
+            formatDuration(restSecondsLeft),
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Orange,
+            modifier = bottom
+                .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
+                .onGloballyPositioned { countdownCoords = it }
+                .pointerInput(restKey) {
+                    detectDragGestures(
+                        onDragStart = {
+                            targetsShown = true
+                            origin = countdownCoords?.boundsInRoot()?.center ?: Offset.Zero
+                        },
+                        onDragEnd = {
+                            val dropAt = origin + drag
+                            when {
+                                skipRect.contains(dropAt) -> onSkipRest()
+                                hideRect.contains(dropAt) -> {
+                                    restHidden = true
+                                    targetsShown = false
+                                }
+                            }
+                            drag = Offset.Zero
+                        },
+                        onDragCancel = { drag = Offset.Zero },
+                    ) { change, amount ->
+                        change.consume()
+                        drag += amount
+                    }
+                }
+                .clip(RoundedCornerShape(14.dp))
+                .background(Color(0xFF1C1C1E))
+                .clickable { targetsShown = !targetsShown }
+                .padding(horizontal = 14.dp, vertical = 1.dp),
+        )
+        else -> Row(
+            modifier = bottom,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RoundIconButton(onClick = { workoutOpen = true }) { MenuGlyph() }
+            if (resting) RoundIconButton(onClick = { restHidden = false }) { SpinningClock() }
+        }
+    }
+
+    // Drop targets for the countdown
+    if (resting && !restHidden && targetsShown && !workoutOpen) {
+        Row(
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 34.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            DropTarget("⏭ Skip", Orange, highlighted = dragging && skipRect.contains(pointer), onPlaced = { skipRect = it }, onClick = onSkipRest)
+            DropTarget("Hide", StepperGrey, highlighted = dragging && hideRect.contains(pointer), onPlaced = { hideRect = it }) {
+                restHidden = true
+                targetsShown = false
+            }
+        }
+    }
+}
+
+// Slim workout bar: time (tap to fold it back into ☰), orange pause / green play, red stop
+@Composable
+private fun WorkoutBar(
     elapsedSeconds: Long,
     paused: Boolean,
     onPauseToggle: () -> Unit,
     onStop: () -> Unit,
+    onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
         modifier = modifier
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(Color(0xFF1C1C1E))
-            .padding(start = 14.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
+            .padding(start = 12.dp, end = 4.dp, top = 3.dp, bottom = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             formatDuration(elapsedSeconds),
-            fontSize = 22.sp,
+            fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
             color = if (paused) Orange else Color.White,
+            modifier = Modifier.clickable(onClick = onCollapse).padding(end = 2.dp),
         )
-        // Pause (orange, two bars) / Play (green, triangle)
         Box(
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(if (paused) Green else Orange).clickable(onClick = onPauseToggle),
+            modifier = Modifier.size(28.dp).clip(CircleShape).background(if (paused) Green else Orange).clickable(onClick = onPauseToggle),
             contentAlignment = Alignment.Center,
         ) {
             if (paused) {
-                Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = Color.White, modifier = Modifier.size(24.dp))
+                Icon(Icons.Filled.PlayArrow, contentDescription = "Resume", tint = Color.White, modifier = Modifier.size(18.dp))
             } else {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    repeat(2) { Box(Modifier.size(width = 4.dp, height = 14.dp).background(Color(0xFF1F1300))) }
+                Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                    repeat(2) { Box(Modifier.size(width = 3.dp, height = 11.dp).background(Color(0xFF1F1300))) }
                 }
             }
         }
-        // Stop (red square)
         Box(
-            modifier = Modifier.size(36.dp).clip(CircleShape).background(Red).clickable(onClick = onStop),
+            modifier = Modifier.size(28.dp).clip(CircleShape).background(Red).clickable(onClick = onStop),
             contentAlignment = Alignment.Center,
         ) {
-            Box(Modifier.size(12.dp).background(Color.White))
+            Box(Modifier.size(9.dp).background(Color.White))
         }
     }
+}
+
+@Composable
+private fun RoundIconButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier.size(30.dp).clip(CircleShape).background(Color(0xFF26262A)).clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { content() }
+}
+
+// ☰
+@Composable
+private fun MenuGlyph() {
+    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        repeat(3) { Box(Modifier.size(width = 13.dp, height = 2.dp).clip(RoundedCornerShape(1.dp)).background(Color.White)) }
+    }
+}
+
+// Orange clock face with a hand going round: a rest is counting down while hidden
+@Composable
+private fun SpinningClock() {
+    val angle by androidx.compose.animation.core.rememberInfiniteTransition(label = "clock").animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(2000, easing = androidx.compose.animation.core.LinearEasing),
+        ),
+        label = "hand",
+    )
+    androidx.compose.foundation.Canvas(Modifier.size(18.dp)) {
+        val stroke = 2.dp.toPx()
+        val radius = size.minDimension / 2 - stroke
+        drawCircle(Orange, radius = radius, style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke))
+        val rad = Math.toRadians((angle - 90).toDouble())
+        val hand = radius * 0.7f
+        drawLine(
+            Orange,
+            start = center,
+            end = Offset(center.x + (hand * kotlin.math.cos(rad)).toFloat(), center.y + (hand * kotlin.math.sin(rad)).toFloat()),
+            strokeWidth = stroke,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+    }
+}
+
+// Where the countdown can be dropped (also works with a tap); lights up while the number is over it
+@Composable
+private fun DropTarget(label: String, color: Color, highlighted: Boolean, onPlaced: (Rect) -> Unit, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.Bold,
+        color = if (color == Orange) Color(0xFF1F1300) else Color.White,
+        modifier = Modifier
+            .onGloballyPositioned { onPlaced(it.boundsInRoot()) }
+            .clip(RoundedCornerShape(20.dp))
+            .background(color)
+            .then(if (highlighted) Modifier.border(2.dp, Color.White, RoundedCornerShape(20.dp)) else Modifier)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 9.dp),
+    )
 }
 
 // Stop pressed: finish and save, discard, or keep going (three identical buttons)
@@ -796,35 +955,6 @@ private fun RestOverFlash(key: Long, onFinished: () -> Unit) {
                 Text("Back to work", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
             }
         }
-    }
-}
-
-// Sticky orange badge at the top while resting; the list keeps scrolling underneath
-@Composable
-private fun RestBadge(label: String, secondsLeft: Long, onSkip: () -> Unit, modifier: Modifier = Modifier) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(Color(0xFFF59E0B))
-            .padding(start = 14.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Column {
-            Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
-            Text(formatDuration(secondsLeft), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1F1300))
-        }
-        Text(
-            "Skip",
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White,
-            modifier = Modifier
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF1F1300))
-                .clickable(onClick = onSkip)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
     }
 }
 
