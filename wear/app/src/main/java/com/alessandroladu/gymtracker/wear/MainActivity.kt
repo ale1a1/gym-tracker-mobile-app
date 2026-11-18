@@ -683,8 +683,9 @@ private fun WorkoutCompleteScreen(title: String, setsLeft: Int, onFinish: () -> 
 
 // Bottom of the workout screen, like a music mini player:
 // - no rest: a small ☰ button; tapped, it opens the slim workout bar (time, pause, stop)
-// - resting: just the countdown; tap it and Skip / Hide appear at the top, then drag the number onto one
-// - rest hidden: a spinning clock next to ☰; tap it to see the countdown again
+// - resting: just the countdown (no ☰: one timer at a time); while it is dragged, small Skip / Hide
+//   targets appear at the top, drop the number on one
+// - rest hidden: only a spinning clock; tap it to see the countdown again
 @Composable
 private fun BoxScope.BottomTimers(
     workoutSeconds: Long,
@@ -697,9 +698,11 @@ private fun BoxScope.BottomTimers(
 ) {
     val resting = restKey != null
     var workoutOpen by remember { mutableStateOf(false) }
-    // A new rest always starts visible
+    // A new rest always starts visible, and closes the workout bar (one timer at a time)
     var restHidden by remember(restKey) { mutableStateOf(false) }
-    var targetsShown by remember(restKey) { mutableStateOf(false) }
+    LaunchedEffect(restKey) {
+        if (restKey != null) workoutOpen = false
+    }
     // Dragging the countdown: where it started and how far it moved (root coordinates)
     var drag by remember { mutableStateOf(Offset.Zero) }
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -711,7 +714,7 @@ private fun BoxScope.BottomTimers(
 
     val bottom = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
     when {
-        workoutOpen -> WorkoutBar(workoutSeconds, paused, onPauseToggle, onStop, onCollapse = { workoutOpen = false }, modifier = bottom)
+        workoutOpen && !resting -> WorkoutBar(workoutSeconds, paused, onPauseToggle, onStop, onCollapse = { workoutOpen = false }, modifier = bottom)
         resting && !restHidden -> Text(
             formatDuration(restSecondsLeft),
             fontSize = 20.sp,
@@ -723,17 +726,13 @@ private fun BoxScope.BottomTimers(
                 .pointerInput(restKey) {
                     detectDragGestures(
                         onDragStart = {
-                            targetsShown = true
                             origin = countdownCoords?.boundsInRoot()?.center ?: Offset.Zero
                         },
                         onDragEnd = {
                             val dropAt = origin + drag
                             when {
                                 skipRect.contains(dropAt) -> onSkipRest()
-                                hideRect.contains(dropAt) -> {
-                                    restHidden = true
-                                    targetsShown = false
-                                }
+                                hideRect.contains(dropAt) -> restHidden = true
                             }
                             drag = Offset.Zero
                         },
@@ -745,7 +744,6 @@ private fun BoxScope.BottomTimers(
                 }
                 .clip(RoundedCornerShape(14.dp))
                 .background(Color(0xFF1C1C1E))
-                .clickable { targetsShown = !targetsShown }
                 .padding(horizontal = 14.dp, vertical = 1.dp),
         )
         else -> Row(
@@ -753,22 +751,19 @@ private fun BoxScope.BottomTimers(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            RoundIconButton(onClick = { workoutOpen = true }) { MenuGlyph() }
             if (resting) RoundIconButton(onClick = { restHidden = false }) { SpinningClock() }
+            else RoundIconButton(onClick = { workoutOpen = true }) { MenuGlyph() }
         }
     }
 
-    // Drop targets for the countdown
-    if (resting && !restHidden && targetsShown && !workoutOpen) {
+    // Drop targets for the countdown, only while it is being dragged
+    if (resting && !restHidden && dragging && !workoutOpen) {
         Row(
-            modifier = Modifier.align(Alignment.TopCenter).padding(top = 34.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = 36.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            DropTarget("⏭ Skip", Orange, highlighted = dragging && skipRect.contains(pointer), onPlaced = { skipRect = it }, onClick = onSkipRest)
-            DropTarget("Hide", StepperGrey, highlighted = dragging && hideRect.contains(pointer), onPlaced = { hideRect = it }) {
-                restHidden = true
-                targetsShown = false
-            }
+            DropTarget("Skip", Orange, highlighted = skipRect.contains(pointer), onPlaced = { skipRect = it })
+            DropTarget("Hide", StepperGrey, highlighted = hideRect.contains(pointer), onPlaced = { hideRect = it })
         }
     }
 }
@@ -862,12 +857,12 @@ private fun SpinningClock() {
     }
 }
 
-// Where the countdown can be dropped (also works with a tap); lights up while the number is over it
+// Small place to drop the countdown on; outlined while the number is over it
 @Composable
-private fun DropTarget(label: String, color: Color, highlighted: Boolean, onPlaced: (Rect) -> Unit, onClick: () -> Unit) {
+private fun DropTarget(label: String, color: Color, highlighted: Boolean, onPlaced: (Rect) -> Unit) {
     Text(
         label,
-        fontSize = 14.sp,
+        fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         color = if (color == Orange) Color(0xFF1F1300) else Color.White,
         modifier = Modifier
@@ -875,8 +870,7 @@ private fun DropTarget(label: String, color: Color, highlighted: Boolean, onPlac
             .clip(RoundedCornerShape(20.dp))
             .background(color)
             .then(if (highlighted) Modifier.border(2.dp, Color.White, RoundedCornerShape(20.dp)) else Modifier)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 9.dp),
+            .padding(horizontal = 10.dp, vertical = 4.dp),
     )
 }
 
