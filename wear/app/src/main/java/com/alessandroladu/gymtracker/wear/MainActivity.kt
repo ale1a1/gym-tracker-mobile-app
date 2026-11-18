@@ -282,7 +282,7 @@ private fun WorkoutListScreen(
             modifier = Modifier.fillMaxWidth(),
         ) {
             // Title close to the top and to the list (no ListHeader padding)
-            item { Text("Workouts", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 2.dp)) }
+            item { Text("Workouts", fontSize = 20.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 3.dp)) }
             state.error?.let { error -> item { ErrorText(error) { viewModel.clearError() } } }
             // Waiting for the cloud: a small spinner, nothing else (no "No workouts" flash)
             val waiting = !state.workoutsLoaded && state.error == null
