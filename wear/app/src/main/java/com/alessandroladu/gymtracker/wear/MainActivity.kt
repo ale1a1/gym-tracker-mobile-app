@@ -114,7 +114,13 @@ class MainActivity : ComponentActivity() {
 
             MaterialTheme {
                 AppScaffold(timeText = { TimeText() }) {
-                    GymTrackerApp(state, viewModel, this@MainActivity)
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        GymTrackerApp(state, viewModel, this@MainActivity)
+                        // Above every screen of the app (workout list, history, keypad...)
+                        state.restOverAtMillis?.let { at ->
+                            RestOverFlash(key = at, onFinished = { viewModel.clearRestOver() })
+                        }
+                    }
                 }
             }
         }
@@ -584,9 +590,6 @@ private fun ActiveWorkoutScreen(
             }
         }
 
-        state.restOverAtMillis?.let { at ->
-            RestOverFlash(key = at, onFinished = { viewModel.clearRestOver() })
-        }
 
         // Timers at the bottom, like a music mini player (hidden while "Rest is over" flashes).
         // A rest that already ran out (e.g. the app was in the background) isn't shown as 0:00.
@@ -939,14 +942,15 @@ private fun DialogButton(label: String, color: Color, onClick: () -> Unit) {
 private fun RestOverFlash(key: Long, onFinished: () -> Unit) {
     var visible by remember(key) { mutableStateOf(true) }
     LaunchedEffect(key) {
+        // Three clear flashes, then it stays a moment
         repeat(3) {
             visible = true
-            delay(280)
+            delay(550)
             visible = false
-            delay(120)
+            delay(300)
         }
         visible = true
-        delay(400)
+        delay(700)
         onFinished()
     }
     Box(
