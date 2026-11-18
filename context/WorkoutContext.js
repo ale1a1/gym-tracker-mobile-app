@@ -744,6 +744,24 @@ export function WorkoutProvider({ children }) {
     }
   }
 
+  // A finished session edited from History (reps, sets, weight): saved here and to the cloud
+  const updateSession = (session) => {
+    if (!session?.sessionId) return
+    const updatedHistory = (state.workoutHistory || []).map((h) => (h && h.sessionId === session.sessionId ? session : h))
+    dispatch({ type: "SET_WORKOUT_HISTORY", payload: updatedHistory })
+    saveWorkoutHistory(updatedHistory)
+    queueSession(session).then(flushQueue)
+  }
+
+  // Deletes a finished session completely (here and in the cloud)
+  const deleteSession = (sessionId) => {
+    if (!sessionId) return
+    const updatedHistory = (state.workoutHistory || []).filter((h) => !h || h.sessionId !== sessionId)
+    dispatch({ type: "SET_WORKOUT_HISTORY", payload: updatedHistory })
+    saveWorkoutHistory(updatedHistory)
+    queueSessionDelete(sessionId).then(flushQueue)
+  }
+
   // After signing out: drop the local copy and the sync queue (they belong to the old account)
   const clearLocalData = async () => {
     skipRest()
@@ -784,6 +802,8 @@ export function WorkoutProvider({ children }) {
         skipRest,
         updateExerciseWeight,
         swapExercise,
+        updateSession,
+        deleteSession,
         syncWithCloud,
         clearLocalData,
       }}

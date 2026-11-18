@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons"
 import { useWorkout } from "../context/WorkoutContext"
 import { useThemedStyles, useTheme } from "../lib/theme"
 import { formatWeight } from "../lib/workoutForm"
+import SessionEditor from "./SessionEditor"
 import {
   HISTORY_PAGE,
   sessionsOf,
@@ -30,6 +31,7 @@ export default function HistoryModal({ visible, onClose, workout, exercise = nul
 
   const [mode, setMode] = useState(null) // null = last 10, "month" or "week"
   const [periodStart, setPeriodStart] = useState(null)
+  const [editing, setEditing] = useState(null) // finished session being edited
 
   const chooseMode = (next) => {
     if (next === mode) {
@@ -91,8 +93,17 @@ export default function HistoryModal({ visible, onClose, workout, exercise = nul
               <Text style={styles.empty}>Nothing in this {mode}</Text>
             )}
             {visibleEntries.map((entry) => (
-              <View key={entry.key} style={styles.entry}>
-                <Text style={styles.date}>{formatHistoryDate(entry.date)}</Text>
+              <TouchableOpacity
+                key={entry.key}
+                style={styles.entry}
+                activeOpacity={0.7}
+                disabled={!entry.session.sessionId}
+                onPress={() => setEditing(entry.session)}
+              >
+                <View style={styles.dateRow}>
+                  <Text style={styles.date}>{formatHistoryDate(entry.date)}</Text>
+                  {!!entry.session.sessionId && <Ionicons name="create-outline" size={18} color={theme.textMuted} />}
+                </View>
                 {entry.exercises.map((ex, i) => (
                   <View key={ex.id || i} style={styles.exerciseRow}>
                     {!exercise && <Text style={styles.exerciseName}>{ex.name}</Text>}
@@ -102,11 +113,12 @@ export default function HistoryModal({ visible, onClose, workout, exercise = nul
                     </Text>
                   </View>
                 ))}
-              </View>
+              </TouchableOpacity>
             ))}
           </ScrollView>
         </View>
       </View>
+      {editing && <SessionEditor session={editing} onClose={() => setEditing(null)} />}
     </Modal>
   )
 }
@@ -210,6 +222,11 @@ const makeStyles = (c) =>
       padding: 12,
       marginBottom: 10,
       gap: 6,
+    },
+    dateRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
     },
     date: {
       fontSize: 14,
