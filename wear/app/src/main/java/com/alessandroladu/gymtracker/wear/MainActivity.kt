@@ -22,6 +22,7 @@ import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.input.pointer.pointerInput
@@ -712,7 +713,7 @@ private fun BoxScope.BottomTimers(
     val dragging = drag != Offset.Zero
     val pointer = origin + drag
 
-    val bottom = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp)
+    val bottom = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp)
     when {
         workoutOpen && !resting -> WorkoutBar(workoutSeconds, paused, onPauseToggle, onStop, onCollapse = { workoutOpen = false }, modifier = bottom)
         resting && !restHidden -> Text(
@@ -720,6 +721,8 @@ private fun BoxScope.BottomTimers(
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = Orange,
+            textAlign = TextAlign.Center,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
             modifier = bottom
                 .offset { IntOffset(drag.x.roundToInt(), drag.y.roundToInt()) }
                 .onGloballyPositioned { countdownCoords = it }
@@ -744,8 +747,9 @@ private fun BoxScope.BottomTimers(
                 }
                 .clip(RoundedCornerShape(16.dp))
                 .background(Color(0xFF1C1C1E))
-                .border(1.dp, Color.White, RoundedCornerShape(16.dp))
-                .padding(horizontal = 20.dp, vertical = 4.dp),
+                .border(1.dp, BorderGrey, RoundedCornerShape(16.dp))
+                .widthIn(min = 84.dp)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
         )
         else -> Row(
             modifier = bottom,
@@ -783,7 +787,7 @@ private fun WorkoutBar(
         modifier = modifier
             .clip(RoundedCornerShape(22.dp))
             .background(Color(0xFF1C1C1E))
-            .border(1.dp, Color.White, RoundedCornerShape(22.dp))
+            .border(1.dp, BorderGrey, RoundedCornerShape(22.dp))
             .padding(start = 16.dp, end = 6.dp, top = 5.dp, bottom = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -793,7 +797,9 @@ private fun WorkoutBar(
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
             color = if (paused) Orange else Color.White,
-            modifier = Modifier.clickable(onClick = onCollapse).padding(end = 2.dp),
+            textAlign = TextAlign.Center,
+            style = androidx.compose.ui.text.TextStyle(fontFeatureSettings = "tnum"),
+            modifier = Modifier.clickable(onClick = onCollapse).widthIn(min = 56.dp).padding(end = 2.dp),
         )
         Box(
             modifier = Modifier.size(28.dp).clip(CircleShape).background(if (paused) Green else Orange).clickable(onClick = onPauseToggle),
@@ -823,7 +829,7 @@ private fun RoundIconButton(onClick: () -> Unit, content: @Composable () -> Unit
             .size(36.dp)
             .clip(CircleShape)
             .background(Color(0xFF26262A))
-            .border(1.dp, Color.White, CircleShape)
+            .border(1.dp, BorderGrey, CircleShape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
@@ -876,7 +882,7 @@ private fun DropTarget(label: String, color: Color, highlighted: Boolean, onPlac
             .onGloballyPositioned { onPlaced(it.boundsInRoot()) }
             .clip(RoundedCornerShape(20.dp))
             .background(color)
-            .border(if (highlighted) 2.dp else 1.dp, Color.White, RoundedCornerShape(20.dp))
+            .border(if (highlighted) 2.dp else 1.dp, if (highlighted) Color.White else BorderGrey, RoundedCornerShape(20.dp))
             .padding(horizontal = 14.dp, vertical = 6.dp),
     )
 }
@@ -1184,28 +1190,28 @@ private fun SetRow(setNumber: Int, reps: Int, done: Boolean, onMinus: () -> Unit
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            RoundButton(onClick = onMinus, background = StepperGrey) { Text("−", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-            Text("$reps", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 2.dp))
-            RoundButton(onClick = onPlus, background = StepperGrey) { Text("+", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White) }
-            // Done: always an outlined circle; only the tick turns green once the set is done
+            RoundButton(onClick = onMinus, background = StepperGrey, size = 32.dp) { Text("−", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            Text("$reps", fontSize = 19.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 2.dp))
+            RoundButton(onClick = onPlus, background = StepperGrey, size = 32.dp) { Text("+", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White) }
+            // Done: an outlined circle; tick and border turn green once the set is done
             Box(
                 modifier = Modifier
-                    .size(38.dp)
+                    .size(32.dp)
                     .clip(CircleShape)
-                    .border(2.dp, Color.Gray, CircleShape)
+                    .border(2.dp, if (done) Green else Color.Gray, CircleShape)
                     .clickable(onClick = onToggleDone),
                 contentAlignment = Alignment.Center,
             ) {
-                Text("✓", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = if (done) Green else Color.Gray)
+                Text("✓", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = if (done) Green else Color.Gray)
             }
         }
     }
 }
 
 @Composable
-private fun RoundButton(onClick: () -> Unit, background: Color, content: @Composable () -> Unit) {
+private fun RoundButton(onClick: () -> Unit, background: Color, size: androidx.compose.ui.unit.Dp = 38.dp, content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier.size(38.dp).clip(CircleShape).background(background).clickable(onClick = onClick),
+        modifier = Modifier.size(size).clip(CircleShape).background(background).clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) { content() }
 }
@@ -1432,6 +1438,8 @@ private val Red = Color(0xFFEF4444)
 private val Orange = Color(0xFFF59E0B)
 private val SoftBlue = Color(0xFF93C5FD)
 private val StepperGrey = Color(0xFF34343A)
+// Thin border of the bottom timers and their buttons
+private val BorderGrey = Color(0xFF5E5E66)
 
 @Composable
 private fun Message(text: String) {
